@@ -73,6 +73,21 @@ Le fichier [`player.html`](player.html) est un mini lecteur IPTV (une seule page
 https://dp287517.github.io/Dpiptv/player.html
 ```
 
+### Formats pris en charge
+
+Le lecteur route automatiquement chaque flux vers le bon moteur, selon l'extension :
+
+| Format | Extension | Moteur |
+|--------|-----------|--------|
+| HLS (le plus courant en IPTV) | `.m3u8` / sans extension | hls.js (ou HLS natif iOS) |
+| MPEG-TS brut | `.ts`, `.mts`, `.m2ts`, `.mpeg` | mpegts.js |
+| MPEG-DASH | `.mpd` | dash.js |
+| Fichier direct | `.mp4`, `.webm`, `.mov`, `.ogg` | `<video>` natif (ou mpegts.js) |
+
+Autrement dit, côté **format**, le lecteur couvre tout ce qu'un navigateur peut techniquement décoder. En cas d'échec, il retente via le proxy puis propose VLC.
+
+> ⚠️ Ce qu'aucun moteur ne peut résoudre : un flux **géo-bloqué** (le serveur refuse ta connexion selon ton pays) ou **mort** (lien coupé). Ce n'est pas une limite du lecteur mais du serveur distant — VLC n'y changera rien non plus.
+
 ### Proxy de flux (pour les chaînes bloquées par le navigateur)
 
 Les navigateurs bloquent deux catégories de flux : ceux en `http://` non sécurisé (mixed content) et ceux dont le serveur n'envoie pas d'en-têtes CORS. Le lecteur intègre un **proxy de flux** qui contourne ces deux blocages :
