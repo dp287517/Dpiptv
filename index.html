@@ -17,6 +17,7 @@
     --ok: #34c77b;
     --warn: #f5a623;
     --err: #ef5350;
+    --vlc: #ff8800;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
@@ -30,18 +31,22 @@
   header {
     padding: 12px 14px 8px;
     background: var(--surface);
-    position: sticky;
-    top: 0;
-    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
   header h1 { font-size: 1.05rem; font-weight: 600; }
   header h1 span { color: var(--accent); }
-  .player-wrap {
-    background: #000;
-    position: sticky;
-    top: 0;
-    z-index: 20;
+  #settings-btn {
+    background: var(--surface2);
+    border: none;
+    color: var(--text);
+    font-size: 1rem;
+    padding: 7px 12px;
+    border-radius: 10px;
+    cursor: pointer;
   }
+  .player-wrap { background: #000; position: sticky; top: 0; z-index: 20; }
   video {
     width: 100%;
     max-height: 40vh;
@@ -70,12 +75,27 @@
     padding: 10px 12px;
     border-radius: 10px;
     font-size: .85rem;
-    line-height: 1.4;
+    line-height: 1.45;
     display: none;
   }
   #status.info  { display: block; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
   #status.warn  { display: block; background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
   #status.error { display: block; background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
+  #status .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .action-btn {
+    display: inline-block;
+    padding: 8px 14px;
+    border-radius: 9px;
+    border: none;
+    font-size: .85rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    color: #fff;
+    background: var(--surface2);
+  }
+  .action-btn.vlc { background: var(--vlc); }
+  .action-btn.primary { background: var(--accent); }
   .controls { padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
   .chips { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
   .chips::-webkit-scrollbar { display: none; }
@@ -91,7 +111,7 @@
   }
   .chip.active { background: var(--accent); color: #fff; font-weight: 600; }
   .row { display: flex; gap: 8px; }
-  input[type="search"], input[type="text"] {
+  input[type="search"], input[type="text"], select {
     flex: 1;
     padding: 10px 12px;
     border-radius: 10px;
@@ -101,7 +121,7 @@
     font-size: .95rem;
     -webkit-appearance: none;
   }
-  input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  input:focus, select:focus { outline: 2px solid var(--accent); border-color: transparent; }
   button.load {
     padding: 10px 16px;
     border-radius: 10px;
@@ -117,7 +137,7 @@
   .channel {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     padding: 10px 12px;
     background: var(--surface);
     border-radius: 12px;
@@ -155,15 +175,17 @@
     letter-spacing: .03em;
   }
   .channel .badge.http { color: var(--warn); }
-  .channel .copy {
+  .channel .mini-btn {
     flex: none;
     background: none;
     border: none;
     color: var(--muted);
-    font-size: 1.15rem;
-    padding: 6px;
+    font-size: 1.05rem;
+    padding: 6px 4px;
     cursor: pointer;
+    text-decoration: none;
   }
+  .channel .mini-btn.vlc { color: var(--vlc); font-size: .7rem; font-weight: 700; border: 1px solid var(--vlc); border-radius: 6px; padding: 4px 6px; }
   #empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: .9rem; display: none; }
   .spinner {
     width: 26px; height: 26px;
@@ -175,6 +197,32 @@
     display: none;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  /* Settings panel */
+  #settings-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 50;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #settings-overlay.visible { display: flex; }
+  #settings-panel {
+    background: var(--surface);
+    width: 100%;
+    max-width: 560px;
+    border-radius: 18px 18px 0 0;
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  #settings-panel h2 { font-size: 1rem; }
+  #settings-panel label { font-size: .8rem; color: var(--muted); }
+  #settings-panel .hint { font-size: .75rem; color: var(--muted); line-height: 1.5; }
+  #settings-panel .presets { display: flex; gap: 8px; flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -187,6 +235,7 @@
 
 <header>
   <h1>📺 <span>Dpiptv</span> — Lecteur de test</h1>
+  <button id="settings-btn" title="Réglages du proxy">⚙️</button>
 </header>
 
 <div class="controls">
@@ -205,6 +254,36 @@
 <div id="empty">Aucune chaîne trouvée.</div>
 <ul id="channels"></ul>
 
+<div id="settings-overlay">
+  <div id="settings-panel">
+    <h2>⚙️ Proxy de flux</h2>
+    <p class="hint">
+      Le proxy contourne deux blocages du navigateur : les flux en <b>http://</b> non sécurisé
+      et les serveurs sans <b>CORS</b>. Le flux vidéo transite alors par le proxy.
+    </p>
+    <label for="proxy-mode">Mode</label>
+    <select id="proxy-mode">
+      <option value="fallback">Automatique — nouvel essai via proxy si la lecture directe échoue (recommandé)</option>
+      <option value="always">Toujours passer par le proxy</option>
+      <option value="off">Désactivé — lecture directe uniquement</option>
+    </select>
+    <label for="proxy-url">URL du proxy (<code>{url}</code> = flux encodé)</label>
+    <input type="text" id="proxy-url" placeholder="https://mon-proxy.workers.dev/?url={url}">
+    <div class="presets">
+      <button class="action-btn" id="preset-corsproxy">corsproxy.io (public)</button>
+      <button class="action-btn" id="preset-allorigins">allorigins.win (public)</button>
+    </div>
+    <p class="hint">
+      Les proxys publics dépannent mais sont lents et limités. Pour un résultat fiable,
+      déploie ton propre proxy (gratuit, 5 min) avec le fichier <b>proxy-worker.js</b> du repo
+      — instructions dans TESTING.md — puis colle son URL ici.
+      Note : les chaînes <b>géo-bloquées</b> ou mortes resteront illisibles quel que soit le proxy ;
+      le bouton VLC reste la valeur sûre.
+    </p>
+    <button class="action-btn primary" id="settings-save">Enregistrer</button>
+  </div>
+</div>
+
 <script>
 (function () {
   'use strict';
@@ -212,6 +291,7 @@
   var REPO = 'dp287517/Dpiptv';
   var BRANCH = 'master';
   var QUICK = ['fr', 'ch', 'be', 'uk', 'us', 'de', 'it', 'es', 'pt'];
+  var DEFAULT_PROXY = 'https://corsproxy.io/?url={url}';
 
   var video = document.getElementById('video');
   var statusEl = document.getElementById('status');
@@ -227,12 +307,130 @@
 
   var channels = [];
   var hls = null;
-  var currentItem = null;
+  var playToken = 0;
 
-  function setStatus(kind, html) {
+  /* ---------------- Proxy settings ---------------- */
+
+  var proxyTpl = localStorage.getItem('dpiptv.proxyTpl');
+  if (proxyTpl === null) proxyTpl = DEFAULT_PROXY;
+  var proxyMode = localStorage.getItem('dpiptv.proxyMode') || 'fallback';
+
+  function proxyPrefix() {
+    var i = proxyTpl.indexOf('{url}');
+    return i >= 0 ? proxyTpl.slice(0, i) : proxyTpl;
+  }
+  function proxyReady() {
+    return proxyMode !== 'off' && !!proxyTpl;
+  }
+  function isProxied(u) {
+    var p = proxyPrefix();
+    return !!p && u.indexOf(p) === 0;
+  }
+  function proxify(u) {
+    if (!proxyTpl || isProxied(u)) return u;
+    if (proxyTpl.indexOf('{url}') >= 0) return proxyTpl.replace('{url}', encodeURIComponent(u));
+    return proxyTpl + encodeURIComponent(u);
+  }
+  function unproxify(u) {
+    if (!isProxied(u)) return u;
+    var rest = u.slice(proxyPrefix().length);
+    try { return decodeURIComponent(rest); } catch (e) { return rest; }
+  }
+
+  /* Rewrites an HLS manifest so every URI goes through the proxy.
+     baseUrl = the ORIGINAL (un-proxied) manifest URL, for relative resolution. */
+  function absUrl(u, baseUrl) {
+    try { return new URL(u, baseUrl).toString(); } catch (e) { return u; }
+  }
+  function rewriteManifest(text, baseUrl) {
+    return text.split('\n').map(function (line) {
+      var t = line.trim();
+      if (!t) return line;
+      if (t.charAt(0) === '#') {
+        return line.replace(/URI="([^"]+)"/g, function (_m, u) {
+          return 'URI="' + proxify(absUrl(u, baseUrl)) + '"';
+        });
+      }
+      return proxify(absUrl(t, baseUrl));
+    }).join('\n');
+  }
+
+  /* hls.js loader that routes every request through the proxy and
+     rewrites manifests client-side (works with any pass-through CORS proxy). */
+  var ProxyLoader = null;
+  function getProxyLoader() {
+    if (ProxyLoader || !window.Hls) return ProxyLoader;
+    var Base = Hls.DefaultConfig.loader;
+    ProxyLoader = function (config) { Base.call(this, config); };
+    ProxyLoader.prototype = Object.create(Base.prototype);
+    ProxyLoader.prototype.constructor = ProxyLoader;
+    ProxyLoader.prototype.load = function (context, config, callbacks) {
+      context.url = proxify(context.url);
+      var onSuccess = callbacks.onSuccess;
+      callbacks.onSuccess = function (response, stats, ctx, xhr) {
+        if (typeof response.data === 'string' && response.data.indexOf('#EXTM3U') === 0) {
+          var base = unproxify(ctx.url);
+          response.data = rewriteManifest(response.data, base);
+        }
+        onSuccess(response, stats, ctx, xhr);
+      };
+      Base.prototype.load.call(this, context, config, callbacks);
+    };
+    return ProxyLoader;
+  }
+
+  /* ---------------- VLC deep links ---------------- */
+
+  function vlcUrl(u) {
+    var ua = navigator.userAgent;
+    if (/iPad|iPhone|iPod/.test(ua)) {
+      return 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(u);
+    }
+    if (/Android/i.test(ua)) {
+      var scheme = u.indexOf('https:') === 0 ? 'https' : 'http';
+      return 'intent://' + u.replace(/^https?:\/\//, '') +
+        '#Intent;scheme=' + scheme + ';type=video/*;package=org.videolan.vlc;end';
+    }
+    return 'vlc://' + u;
+  }
+  function makeVlcLink(u, label) {
+    var a = document.createElement('a');
+    a.className = 'action-btn vlc';
+    a.href = vlcUrl(u);
+    a.textContent = label || '▶ Ouvrir dans VLC';
+    a.addEventListener('click', function (e) { e.stopPropagation(); });
+    return a;
+  }
+
+  /* ---------------- Status ---------------- */
+
+  function setStatus(kind, html, actionNodes) {
     statusEl.className = kind || '';
     statusEl.innerHTML = html || '';
+    if (actionNodes && actionNodes.length) {
+      var box = document.createElement('div');
+      box.className = 'actions';
+      actionNodes.forEach(function (n) { box.appendChild(n); });
+      statusEl.appendChild(box);
+    }
   }
+  function makeCopyBtn(u) {
+    var b = document.createElement('button');
+    b.className = 'action-btn';
+    b.textContent = '⧉ Copier le lien';
+    b.addEventListener('click', function (e) { e.stopPropagation(); copyText(u); });
+    return b;
+  }
+  function failActions(ch) {
+    return [makeVlcLink(ch.url), makeCopyBtn(ch.url)];
+  }
+  function geoHint(ch) {
+    return /geo.?block/i.test(ch.name)
+      ? ' Cette chaîne est marquée <b>géo-bloquée</b> : elle n’accepte que les connexions depuis son pays d’origine.'
+      : '';
+  }
+
+  /* ---------------- Playlist ---------------- */
 
   function rawUrl(code) {
     return 'https://raw.githubusercontent.com/' + REPO + '/' + BRANCH + '/streams/' + code + '.m3u';
@@ -258,7 +456,7 @@
           id: attrs['tvg-id'] || ''
         };
       } else if (line.charAt(0) === '#') {
-        continue; // #EXTVLCOPT, #EXTM3U, etc.
+        continue;
       } else if (pending) {
         pending.url = line;
         result.push(pending);
@@ -316,12 +514,20 @@
       var isInsecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
       var badge = document.createElement('span');
       badge.className = 'badge' + (isInsecure ? ' http' : '');
-      badge.textContent = isInsecure ? 'http ⚠' : (ch.url.indexOf('.mpd') >= 0 ? 'dash' : 'hls');
+      badge.textContent = isInsecure ? 'http' : (ch.url.indexOf('.mpd') >= 0 ? 'dash' : 'hls');
       li.appendChild(badge);
 
+      var vlc = document.createElement('a');
+      vlc.className = 'mini-btn vlc';
+      vlc.href = vlcUrl(ch.url);
+      vlc.textContent = 'VLC';
+      vlc.title = 'Ouvrir directement dans VLC';
+      vlc.addEventListener('click', function (e) { e.stopPropagation(); });
+      li.appendChild(vlc);
+
       var copy = document.createElement('button');
-      copy.className = 'copy';
-      copy.title = 'Copier le lien du flux (pour VLC)';
+      copy.className = 'mini-btn';
+      copy.title = 'Copier le lien du flux';
       copy.textContent = '⧉';
       copy.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -329,7 +535,7 @@
       });
       li.appendChild(copy);
 
-      li.addEventListener('click', function () { play(ch, li); });
+      li.addEventListener('click', function () { play(ch, li, false); });
       channelsEl.appendChild(li);
     });
     countEl.textContent = channels.length ? shown + ' / ' + channels.length + ' chaînes' : '';
@@ -354,7 +560,10 @@
     document.body.removeChild(ta);
   }
 
+  /* ---------------- Playback ---------------- */
+
   function stopPlayback() {
+    playToken++;
     if (hls) { hls.destroy(); hls = null; }
     video.removeAttribute('src');
     video.load();
@@ -366,66 +575,96 @@
     if (li) li.classList.add('playing');
   }
 
-  function play(ch, li) {
-    stopPlayback();
-    markPlaying(li);
-    currentItem = ch;
-    nowPlayingEl.classList.add('visible');
-    nowPlayingName.textContent = ch.name;
-    setStatus('', '');
-
-    if (ch.url.indexOf('http:') === 0 && location.protocol === 'https:') {
-      setStatus('warn',
-        '⚠️ « ' + escapeHtml(ch.name) + ' » est diffusé en <b>http://</b> non sécurisé : le navigateur bloque sa lecture depuis une page https. ' +
-        'Touche ⧉ pour copier le lien et ouvre-le dans <b>VLC</b> ou une app IPTV.');
-      return;
-    }
-    if (ch.url.indexOf('.mpd') >= 0) {
-      setStatus('warn', '⚠️ Flux DASH (.mpd) non pris en charge par ce lecteur. Copie le lien (⧉) et ouvre-le dans VLC.');
-      return;
-    }
-
-    setStatus('info', 'Chargement de « ' + escapeHtml(ch.name) + ' »…');
-
-    if (window.Hls && Hls.isSupported()) {
-      hls = new Hls({ maxBufferLength: 20 });
-      hls.loadSource(ch.url);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, function () {
-        setStatus('', '');
-        video.play().catch(function () { /* autoplay refusé : l'utilisateur touchera play */ });
-      });
-      hls.on(Hls.Events.ERROR, function (_evt, data) {
-        if (data.fatal) {
-          stopPlayback();
-          setStatus('error',
-            '❌ Impossible de lire « ' + escapeHtml(ch.name) + ' » depuis le navigateur (lien mort, ou serveur sans CORS). ' +
-            'Ce n’est pas forcément un flux cassé : essaie-le dans VLC via ⧉, ou choisis une autre chaîne.');
-        }
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // iOS Safari : HLS natif
-      video.src = ch.url;
-      video.addEventListener('loadedmetadata', function onMeta() {
-        video.removeEventListener('loadedmetadata', onMeta);
-        setStatus('', '');
-        video.play().catch(function () { /* ignore */ });
-      });
-      video.addEventListener('error', function onErr() {
-        video.removeEventListener('error', onErr);
-        setStatus('error',
-          '❌ Impossible de lire « ' + escapeHtml(ch.name) + ' » (lien mort ou bloqué). Essaie dans VLC via ⧉, ou choisis une autre chaîne.');
-      });
-    } else {
-      setStatus('error', 'Ce navigateur ne prend pas en charge la lecture HLS.');
-    }
-  }
-
   function escapeHtml(s) {
     var d = document.createElement('div');
     d.textContent = s;
     return d.innerHTML;
   }
+
+  function play(ch, li, viaProxy) {
+    stopPlayback();
+    var token = playToken;
+    markPlaying(li);
+    nowPlayingEl.classList.add('visible');
+    nowPlayingName.textContent = ch.name;
+    setStatus('', '');
+
+    var insecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
+
+    if (ch.url.indexOf('.mpd') >= 0) {
+      setStatus('warn',
+        '⚠️ Flux DASH (.mpd) non pris en charge par ce lecteur web. Ouvre-le dans VLC :',
+        failActions(ch));
+      return;
+    }
+
+    var useProxy = !!viaProxy || (proxyMode === 'always' && proxyReady());
+    if (insecure && !useProxy) {
+      if (proxyReady()) {
+        useProxy = true;
+      } else {
+        setStatus('warn',
+          '⚠️ « ' + escapeHtml(ch.name) + ' » est en <b>http://</b> non sécurisé : le navigateur le bloque. ' +
+          'Active le proxy (⚙️ en haut) ou ouvre-le dans VLC :',
+          failActions(ch));
+        return;
+      }
+    }
+
+    setStatus('info', 'Chargement de « ' + escapeHtml(ch.name) + ' »' + (useProxy ? ' <b>via proxy</b>' : '') + '…');
+
+    function onFail() {
+      if (token !== playToken) return;
+      stopPlayback();
+      if (!useProxy && proxyReady() && proxyMode === 'fallback') {
+        setStatus('info', 'Lecture directe impossible — nouvel essai <b>via proxy</b>…');
+        play(ch, li, true);
+        return;
+      }
+      setStatus('error',
+        '❌ Impossible de lire « ' + escapeHtml(ch.name) + ' »' + (useProxy ? ', même via le proxy' : '') +
+        ' (lien mort, serveur bloquant, ou géo-restriction).' + geoHint(ch) +
+        ' VLC depuis ton téléphone a les meilleures chances :',
+        failActions(ch));
+    }
+
+    if (window.Hls && Hls.isSupported()) {
+      var cfg = { maxBufferLength: 20 };
+      if (useProxy) {
+        var L = getProxyLoader();
+        if (L) { cfg.loader = L; cfg.pLoader = L; cfg.fLoader = L; }
+      }
+      hls = new Hls(cfg);
+      hls.loadSource(ch.url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, function () {
+        if (token !== playToken) return;
+        setStatus('', '');
+        video.play().catch(function () { /* autoplay refusé : l'utilisateur touchera play */ });
+      });
+      hls.on(Hls.Events.ERROR, function (_evt, data) {
+        if (data.fatal) onFail();
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // HLS natif (anciens iPhone sans MSE). Le proxy n'aide ici que s'il
+      // réécrit les manifests côté serveur (proxy-worker.js le fait).
+      video.src = useProxy ? proxify(ch.url) : ch.url;
+      video.addEventListener('loadedmetadata', function onMeta() {
+        video.removeEventListener('loadedmetadata', onMeta);
+        if (token !== playToken) return;
+        setStatus('', '');
+        video.play().catch(function () { /* ignore */ });
+      });
+      video.addEventListener('error', function onErr() {
+        video.removeEventListener('error', onErr);
+        onFail();
+      });
+    } else {
+      setStatus('error', 'Ce navigateur ne prend pas en charge la lecture HLS.', failActions(ch));
+    }
+  }
+
+  /* ---------------- Playlist loading ---------------- */
 
   function loadPlaylist(code) {
     code = (code || '').trim().replace(/\.m3u$/i, '');
@@ -489,6 +728,36 @@
   searchEl.addEventListener('input', function () {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(function () { render(searchEl.value); }, 150);
+  });
+
+  /* ---------------- Settings UI ---------------- */
+
+  var overlay = document.getElementById('settings-overlay');
+  var proxyUrlInput = document.getElementById('proxy-url');
+  var proxyModeSelect = document.getElementById('proxy-mode');
+
+  document.getElementById('settings-btn').addEventListener('click', function () {
+    proxyUrlInput.value = proxyTpl;
+    proxyModeSelect.value = proxyMode;
+    overlay.classList.add('visible');
+  });
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) overlay.classList.remove('visible');
+  });
+  document.getElementById('preset-corsproxy').addEventListener('click', function () {
+    proxyUrlInput.value = 'https://corsproxy.io/?url={url}';
+  });
+  document.getElementById('preset-allorigins').addEventListener('click', function () {
+    proxyUrlInput.value = 'https://api.allorigins.win/raw?url={url}';
+  });
+  document.getElementById('settings-save').addEventListener('click', function () {
+    proxyTpl = proxyUrlInput.value.trim();
+    proxyMode = proxyModeSelect.value;
+    localStorage.setItem('dpiptv.proxyTpl', proxyTpl);
+    localStorage.setItem('dpiptv.proxyMode', proxyMode);
+    overlay.classList.remove('visible');
+    setStatus('info', 'Réglages enregistrés — proxy ' +
+      (proxyReady() ? (proxyMode === 'always' ? 'activé en permanence' : 'activé en secours automatique') : 'désactivé') + '.');
   });
 
   loadPlaylist('fr');
