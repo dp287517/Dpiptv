@@ -281,19 +281,29 @@
   <div class="sheet">
     <h2>➕ Mes liens</h2>
     <p class="hint">
-      Colle <b>ton propre lien</b> : soit une playlist <b>.m3u</b> (plusieurs chaînes),
-      soit un lien de flux direct (<b>.m3u8</b>, <b>.ts</b>…). Tes playlists sont enregistrées
-      sur cet appareil. Tu es responsable des liens que tu ajoutes.
+      Colle <b>ton propre lien</b>, donne-lui un nom, une langue et une icône.
+      Tes chaînes et playlists sont enregistrées sur cet appareil.
+      Tu es responsable des liens que tu ajoutes.
     </p>
-    <label for="src-url">Lien</label>
-    <input type="text" id="src-url" placeholder="https://… ou http://…/playlist.m3u" autocapitalize="off" autocomplete="off" spellcheck="false">
-    <label for="src-name">Nom (optionnel)</label>
-    <input type="text" id="src-name" placeholder="Ex : Ma playlist sport">
+    <label for="src-url">Lien du flux (ou d'une playlist .m3u)</label>
+    <input type="text" id="src-url" placeholder="https://… ou http://…" autocapitalize="off" autocomplete="off" spellcheck="false">
+    <label for="src-name">Nom de la chaîne</label>
+    <input type="text" id="src-name" placeholder="Ex : beIN Sports 1">
+    <label for="src-group">Langue / catégorie</label>
+    <div class="presets" id="lang-presets"></div>
+    <input type="text" id="src-group" placeholder="Ex : Français, Sport, Arabe…">
+    <label for="src-logo">Icône — lien d'un logo ou emoji (optionnel)</label>
+    <input type="text" id="src-logo" placeholder="https://…/logo.png  ou  ⚽ 🎬 📺" autocapitalize="off" autocomplete="off" spellcheck="false">
     <div class="two-btn">
-      <button class="action-btn" id="src-play">▶ Lire ce flux</button>
-      <button class="action-btn primary" id="src-add">📃 Ajouter la playlist</button>
+      <button class="action-btn" id="src-play">▶ Lire</button>
+      <button class="action-btn primary" id="src-chan">➕ Ajouter la chaîne</button>
     </div>
-    <label>Mes playlists enregistrées</label>
+    <button class="action-btn" id="src-add" style="width:100%">📃 C'est une playlist .m3u — l'importer en entier</button>
+    <div id="my-channels-block" style="display:none">
+      <label>⭐ Mes chaînes</label>
+      <div id="my-list"></div>
+    </div>
+    <label>Mes playlists importées</label>
     <div id="src-list"></div>
   </div>
 </div>
@@ -616,7 +626,7 @@
       li.className = 'channel';
       li.dataset.idx = idx;
 
-      if (ch.logo) {
+      if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
         var img = document.createElement('img');
         img.className = 'logo';
         img.loading = 'lazy';
@@ -632,7 +642,8 @@
       } else {
         var fb = document.createElement('div');
         fb.className = 'logo-fallback';
-        fb.textContent = ch.name.charAt(0).toUpperCase();
+        // A non-URL logo is treated as an emoji/text icon.
+        fb.textContent = ch.logo ? ch.logo : ch.name.charAt(0).toUpperCase();
         li.appendChild(fb);
       }
 
@@ -885,19 +896,44 @@
 
   /* ---------------- Custom sources (user links) ---------------- */
 
-  var customSources = [];
+  var LANG_PRESETS = ['Français', 'Anglais', 'Arabe', 'Espagnol', 'Sport', 'Ciné', 'Enfants', 'Info'];
+
+  var customSources = [];   // imported .m3u playlists
+  var customChannels = [];  // individual channels (name/group/logo/url)
   try { customSources = JSON.parse(localStorage.getItem('dpiptv.custom') || '[]'); } catch (e) { customSources = []; }
+  try { customChannels = JSON.parse(localStorage.getItem('dpiptv.mychannels') || '[]'); } catch (e) { customChannels = []; }
 
-  function saveCustom() {
-    localStorage.setItem('dpiptv.custom', JSON.stringify(customSources));
-  }
+  function saveCustom() { localStorage.setItem('dpiptv.custom', JSON.stringify(customSources)); }
+  function saveMyChannels() { localStorage.setItem('dpiptv.mychannels', JSON.stringify(customChannels)); }
 
-  function loadCustom(cp) {
-    doLoad(cp.url, cp.name, 'custom:' + cp.id, true);
+  function loadCustom(cp) { doLoad(cp.url, cp.name, 'custom:' + cp.id, true); }
+
+  // "Mes chaînes" is an in-memory playlist, rendered like any other.
+  function loadMyChannels() {
+    exitGlobalMode();
+    setActiveChip('mychannels');
+    stopPlayback();
+    markPlaying(null);
+    nowPlayingEl.classList.remove('visible');
+    channels = customChannels.map(function (c) {
+      return { name: c.name, url: c.url, logo: c.logo || '', group: c.group || '', id: '' };
+    });
+    spinnerEl.style.display = 'none';
+    setStatus('', '');
+    searchEl.value = '';
+    render('');
   }
 
   function renderChips() {
     chipsEl.innerHTML = '';
+    if (customChannels.length) {
+      var mc = document.createElement('button');
+      mc.className = 'chip custom';
+      mc.dataset.code = 'mychannels';
+      mc.textContent = '⭐ Mes chaînes';
+      mc.addEventListener('click', loadMyChannels);
+      chipsEl.appendChild(mc);
+    }
     customSources.forEach(function (cp) {
       var b = document.createElement('button');
       b.className = 'chip custom';
@@ -921,45 +957,86 @@
     chipsEl.appendChild(add);
   }
 
+  function makeSrcRow(name, url, onOpen, onDelete) {
+    var row = document.createElement('div');
+    row.className = 'src-item';
+    var meta = document.createElement('div');
+    meta.className = 's-meta';
+    var nm = document.createElement('div'); nm.className = 's-name'; nm.textContent = name;
+    var ur = document.createElement('div'); ur.className = 's-url'; ur.textContent = url;
+    meta.appendChild(nm); meta.appendChild(ur);
+    var open = document.createElement('button');
+    open.className = 'action-btn'; open.textContent = '▶'; open.title = 'Ouvrir';
+    open.addEventListener('click', onOpen);
+    var del = document.createElement('button');
+    del.className = 's-del'; del.textContent = '🗑'; del.title = 'Supprimer';
+    del.addEventListener('click', onDelete);
+    row.appendChild(meta); row.appendChild(open); row.appendChild(del);
+    return row;
+  }
+
+  function renderMyList() {
+    var block = document.getElementById('my-channels-block');
+    var list = document.getElementById('my-list');
+    block.style.display = customChannels.length ? 'block' : 'none';
+    list.innerHTML = '';
+    customChannels.forEach(function (c) {
+      list.appendChild(makeSrcRow(
+        (c.logo && !/^https?:\/\//i.test(c.logo) ? c.logo + ' ' : '') + c.name +
+          (c.group ? ' · ' + c.group : ''),
+        c.url,
+        function () { closeSources(); loadMyChannels(); },
+        function () {
+          customChannels = customChannels.filter(function (x) { return x.id !== c.id; });
+          saveMyChannels(); renderMyList(); renderChips();
+        }
+      ));
+    });
+  }
+
   function renderSrcList() {
     var list = document.getElementById('src-list');
     list.innerHTML = '';
     if (!customSources.length) {
       var e = document.createElement('div');
       e.className = 'src-empty';
-      e.textContent = 'Aucune playlist enregistrée pour l’instant.';
+      e.textContent = 'Aucune playlist importée pour l’instant.';
       list.appendChild(e);
       return;
     }
     customSources.forEach(function (cp) {
-      var row = document.createElement('div');
-      row.className = 'src-item';
-      var meta = document.createElement('div');
-      meta.className = 's-meta';
-      var nm = document.createElement('div'); nm.className = 's-name'; nm.textContent = cp.name;
-      var ur = document.createElement('div'); ur.className = 's-url'; ur.textContent = cp.url;
-      meta.appendChild(nm); meta.appendChild(ur);
-      var open = document.createElement('button');
-      open.className = 'action-btn'; open.textContent = '▶';
-      open.title = 'Ouvrir';
-      open.addEventListener('click', function () { closeSources(); loadCustom(cp); });
-      var del = document.createElement('button');
-      del.className = 's-del'; del.textContent = '🗑'; del.title = 'Supprimer';
-      del.addEventListener('click', function () {
-        customSources = customSources.filter(function (x) { return x.id !== cp.id; });
-        saveCustom(); renderSrcList(); renderChips();
-      });
-      row.appendChild(meta); row.appendChild(open); row.appendChild(del);
-      list.appendChild(row);
+      list.appendChild(makeSrcRow(
+        cp.name, cp.url,
+        function () { closeSources(); loadCustom(cp); },
+        function () {
+          customSources = customSources.filter(function (x) { return x.id !== cp.id; });
+          saveCustom(); renderSrcList(); renderChips();
+        }
+      ));
     });
   }
 
   var srcOverlay = document.getElementById('sources-overlay');
   var srcUrlInput = document.getElementById('src-url');
   var srcNameInput = document.getElementById('src-name');
+  var srcGroupInput = document.getElementById('src-group');
+  var srcLogoInput = document.getElementById('src-logo');
 
-  function openSources() { renderSrcList(); srcOverlay.classList.add('visible'); srcUrlInput.focus(); }
+  // Language / category quick-pick buttons
+  LANG_PRESETS.forEach(function (lbl) {
+    var b = document.createElement('button');
+    b.className = 'action-btn';
+    b.textContent = lbl;
+    b.addEventListener('click', function () { srcGroupInput.value = lbl; });
+    document.getElementById('lang-presets').appendChild(b);
+  });
+
+  function openSources() { renderMyList(); renderSrcList(); srcOverlay.classList.add('visible'); srcUrlInput.focus(); }
   function closeSources() { srcOverlay.classList.remove('visible'); }
+  function clearSrcFields() {
+    srcUrlInput.value = ''; srcNameInput.value = '';
+    srcGroupInput.value = ''; srcLogoInput.value = '';
+  }
 
   function nameFromUrl(u) {
     try {
@@ -971,16 +1048,46 @@
   document.getElementById('sources-btn').addEventListener('click', openSources);
   srcOverlay.addEventListener('click', function (e) { if (e.target === srcOverlay) closeSources(); });
 
+  // ▶ Play once, honoring the name/group/icon entered
   document.getElementById('src-play').addEventListener('click', function () {
     var url = srcUrlInput.value.trim();
     if (!url) { srcUrlInput.focus(); return; }
-    var name = srcNameInput.value.trim() || nameFromUrl(url);
+    var ch = {
+      name: srcNameInput.value.trim() || nameFromUrl(url),
+      url: url,
+      group: srcGroupInput.value.trim() || 'Mon flux',
+      logo: srcLogoInput.value.trim()
+    };
     closeSources();
     exitGlobalMode();
     setActiveChip(null);
-    play({ name: name, url: url, group: 'Mon flux' }, null, false);
+    play(ch, null, false);
   });
 
+  // ➕ Save an individual channel into "Mes chaînes"
+  document.getElementById('src-chan').addEventListener('click', function () {
+    var url = srcUrlInput.value.trim();
+    if (!url) { srcUrlInput.focus(); return; }
+    if (!/^https?:\/\//i.test(url)) {
+      setStatus('warn', 'Le lien doit commencer par http:// ou https://');
+      return;
+    }
+    var c = {
+      id: Date.now().toString(36),
+      name: srcNameInput.value.trim() || nameFromUrl(url),
+      url: url,
+      group: srcGroupInput.value.trim(),
+      logo: srcLogoInput.value.trim()
+    };
+    customChannels.push(c);
+    saveMyChannels();
+    clearSrcFields();
+    renderChips();
+    closeSources();
+    loadMyChannels();
+  });
+
+  // 📃 Import a whole .m3u playlist
   document.getElementById('src-add').addEventListener('click', function () {
     var url = srcUrlInput.value.trim();
     if (!url) { srcUrlInput.focus(); return; }
@@ -988,11 +1095,10 @@
       setStatus('warn', 'Le lien doit commencer par http:// ou https://');
       return;
     }
-    var name = srcNameInput.value.trim() || nameFromUrl(url);
-    var cp = { id: Date.now().toString(36), name: name, url: url };
+    var cp = { id: Date.now().toString(36), name: srcNameInput.value.trim() || nameFromUrl(url), url: url };
     customSources.push(cp);
     saveCustom();
-    srcUrlInput.value = ''; srcNameInput.value = '';
+    clearSrcFields();
     renderChips();
     closeSources();
     loadCustom(cp);
