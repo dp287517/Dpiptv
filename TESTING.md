@@ -113,6 +113,10 @@ Le bouton **🔒 Mes liens** (en haut, ou la pastille `🔒 Mes liens` en fin de
 
 Tout est stocké sur l'appareil (localStorage) et persiste après rechargement ; chaque entrée est supprimable (🗑) depuis le panneau. Les liens `http://` ou sans CORS passent automatiquement par le proxy. Tu peux aussi coller une URL directement dans le champ « Code » en haut. Les liens ajoutés restent sous ta responsabilité.
 
+### Diagnostic (🐞 logs de lecture)
+
+Le panneau **⚙️ → 🐞 Diagnostic** affiche, à l'écran, le journal de la dernière lecture : format détecté, moteur utilisé, proxy oui/non, événements de succès/échec, code HTTP et une **sonde réseau** qui distingue un hôte mort d'un blocage CORS / mixed-content. Lance une chaîne, rouvre le panneau, lis (ou « Copier les logs » pour partager le texte). Utile pour comprendre un **écran noir** : le journal dit si le flux a chargé, échoué, ou été bloqué par le navigateur.
+
 ### Ouvrir dans VLC en un tap
 
 Chaque chaîne a un bouton **VLC** (et les messages d'erreur en proposent un gros) : sur iPhone il ouvre l'app VLC directement sur le flux (`vlc-x-callback://`), sur Android via un intent. VLC lit tout — http, CORS, DASH — c'est la valeur sûre quand le navigateur bloque.

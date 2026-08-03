@@ -244,6 +244,21 @@
   .src-item .s-url { font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .src-item .s-del { background: none; border: none; color: var(--err); font-size: 1.1rem; cursor: pointer; padding: 4px 6px; }
   .src-empty { font-size: .78rem; color: var(--muted); }
+  /* Diagnostics log */
+  #diag-log {
+    background: #0a0d12;
+    border: 1px solid var(--surface2);
+    border-radius: 10px;
+    padding: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .72rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #b9c2d6;
+    max-height: 45vh;
+    overflow-y: auto;
+  }
 </style>
 </head>
 <body>
@@ -338,6 +353,22 @@
       le bouton VLC reste la valeur sûre.
     </p>
     <button class="action-btn primary" id="settings-save">Enregistrer</button>
+    <button class="action-btn" id="diag-open" style="width:100%">🐞 Diagnostic (logs de lecture)</button>
+  </div>
+</div>
+
+<div id="diag-overlay" class="sheet-overlay">
+  <div class="sheet">
+    <h2>🐞 Diagnostic</h2>
+    <p class="hint">
+      Journal de la dernière lecture (format détecté, moteur, proxy, erreurs réseau et code HTTP).
+      Lance une chaîne, rouvre ce panneau, et lis — ou touche « Copier » pour partager le texte.
+    </p>
+    <div id="diag-log">Aucun événement pour l'instant. Lance une chaîne puis rouvre ce panneau.</div>
+    <div class="two-btn">
+      <button class="action-btn" id="diag-copy">⧉ Copier les logs</button>
+      <button class="action-btn" id="diag-clear">🗑 Vider</button>
+    </div>
   </div>
 </div>
 
@@ -756,6 +787,32 @@
     return d.innerHTML;
   }
 
+  /* ---------------- Diagnostics log ---------------- */
+
+  var diagLog = [];
+  function pad2(n) { return ('0' + n).slice(-2); }
+  function dbg(msg) {
+    var t = new Date();
+    var ts = pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + ':' + pad2(t.getSeconds());
+    diagLog.push('[' + ts + '] ' + msg);
+    if (diagLog.length > 400) diagLog.shift();
+    var box = document.getElementById('diag-log');
+    if (box) { box.textContent = diagLog.join('\n'); box.scrollTop = box.scrollHeight; }
+    try { console.log('[dpiptv] ' + msg); } catch (e) {}
+  }
+
+  // Network probe: reports HTTP status, or distinguishes a CORS/mixed-content
+  // block (fetch rejects) from a dead host — helpful for a black screen.
+  function probe(url, label) {
+    fetch(url, { method: 'GET', headers: { Range: 'bytes=0-1' } }).then(function (r) {
+      dbg('🔎 ' + label + ' → HTTP ' + r.status + ' ' + (r.type || '') +
+        ' | CORS ' + (r.headers.get('access-control-allow-origin') ? 'ok' : 'absent'));
+    }).catch(function (e) {
+      dbg('🔎 ' + label + ' → bloqué/injoignable (' + (e && e.message ? e.message : 'network') +
+        ') — CORS, mixed-content http://, ou hôte mort');
+    });
+  }
+
   function play(ch, li, viaProxy) {
     stopPlayback();
     var token = playToken;
@@ -767,6 +824,10 @@
     var insecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
     var kind = detectKind(ch.url);
     var useProxy = !!viaProxy || (proxyMode === 'always' && proxyReady());
+    dbg('▶ « ' + ch.name +' »');
+    dbg('   url = ' + ch.url);
+    dbg('   format=' + kind + ' · http-non-sécurisé=' + (insecure ? 'oui' : 'non') +
+        ' · proxy=' + (useProxy ? 'oui' : 'non') + (viaProxy ? ' (2e essai)' : ''));
     if (insecure && !useProxy) {
       if (proxyReady()) {
         useProxy = true;
@@ -781,14 +842,17 @@
 
     setStatus('info', 'Chargement de « ' + escapeHtml(ch.name) + ' »' + (useProxy ? ' <b>via proxy</b>' : '') + '…');
 
-    function onFail() {
+    function onFail(reason) {
       if (token !== playToken) return;
+      dbg('   ✖ échec' + (useProxy ? ' (via proxy)' : '') + (reason ? ' : ' + reason : ''));
       stopPlayback();
       if (!useProxy && proxyReady() && proxyMode === 'fallback') {
         setStatus('info', 'Lecture directe impossible — nouvel essai <b>via proxy</b>…');
         play(ch, li, true);
         return;
       }
+      // Final failure: probe the source to explain the black screen / error.
+      probe(ch.url, 'accès direct');
       setStatus('error',
         '❌ Impossible de lire « ' + escapeHtml(ch.name) + ' »' + (useProxy ? ', même via le proxy' : '') +
         ' (lien mort, serveur bloquant, ou géo-restriction).' + geoHint(ch) +
@@ -798,18 +862,22 @@
 
     function started() {
       if (token !== playToken) return;
+      dbg('   ✔ flux ouvert — démarrage lecture');
       setStatus('', '');
-      video.play().catch(function () { /* autoplay refusé : l'utilisateur touchera play */ });
+      video.play().then(function () { dbg('   ✔ lecture en cours'); })
+        .catch(function (e) { dbg('   ⏸ autoplay bloqué (' + (e && e.name ? e.name : '') + ') — touche ▶'); });
     }
     // The proxied URL is used when useProxy is on; hls.js uses its own loader instead.
     var srcUrl = useProxy ? proxify(ch.url) : ch.url;
 
     // --- DASH (.mpd) ---
     if (kind === 'dash') {
-      if (!window.dashjs) { setStatus('error', 'Moteur DASH indisponible.', failActions(ch)); return; }
+      if (!window.dashjs) { dbg('   moteur DASH indisponible'); setStatus('error', 'Moteur DASH indisponible.', failActions(ch)); return; }
+      dbg('   moteur = dash.js');
       dash = dashjs.MediaPlayer().create();
-      dash.on(dashjs.MediaPlayer.events.ERROR, onFail);
-      dash.on('error', onFail);
+      dash.on(dashjs.MediaPlayer.events.ERROR, function (e) {
+        onFail('DASH ' + (e && e.error ? (e.error.code || e.error.message || JSON.stringify(e.error)) : 'error'));
+      });
       dash.initialize(video, srcUrl, true);
       dash.on(dashjs.MediaPlayer.events.CAN_PLAY, started);
       return;
@@ -820,19 +888,24 @@
       if (window.mpegts && window.mpegts.isSupported && window.mpegts.isSupported()) {
         var type = kind === 'mpegts' ? 'mpegts' : 'mp4';
         var isLive = kind === 'mpegts';
+        dbg('   moteur = mpegts.js (type=' + type + ', live=' + isLive + ')');
         try {
           mpegts = window.mpegts.createPlayer(
             { type: type, isLive: isLive, url: srcUrl },
             { enableWorker: true, liveBufferLatencyChasing: isLive, lazyLoad: false }
           );
-          mpegts.on(window.mpegts.Events.ERROR, onFail);
+          mpegts.on(window.mpegts.Events.ERROR, function (a, b, c) {
+            onFail('MPEG-TS ' + [a, b, (c && c.msg) ? c.msg : ''].filter(Boolean).join(' / '));
+          });
           mpegts.attachMediaElement(video);
           mpegts.load();
           video.addEventListener('canplay', function onC() {
             video.removeEventListener('canplay', onC); started();
           });
           return;
-        } catch (e) { /* fall through to native */ }
+        } catch (e) { dbg('   mpegts.js exception: ' + (e && e.message)); }
+      } else {
+        dbg('   mpegts.js non supporté ici → lecture native');
       }
       // Native fallback (Safari can play mp4/mov directly; some can play TS)
       video.src = srcUrl;
@@ -840,13 +913,15 @@
         video.removeEventListener('loadedmetadata', onMeta); started();
       });
       video.addEventListener('error', function onErr() {
-        video.removeEventListener('error', onErr); onFail();
+        video.removeEventListener('error', onErr);
+        onFail('lecture native impossible (' + ((video.error && video.error.code) || '?') + ')');
       });
       return;
     }
 
     // --- HLS (.m3u8 or unknown, the IPTV default) ---
     if (window.Hls && Hls.isSupported()) {
+      dbg('   moteur = hls.js' + (useProxy ? ' (loader proxy)' : ''));
       var cfg = { maxBufferLength: 20 };
       if (useProxy) {
         var L = getProxyLoader();
@@ -857,19 +932,24 @@
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, started);
       hls.on(Hls.Events.ERROR, function (_evt, data) {
-        if (data.fatal) onFail();
+        var code = data && data.response && data.response.code ? ' HTTP ' + data.response.code : '';
+        dbg('   hls: ' + (data ? (data.type + '/' + data.details) : 'error') + code + (data && data.fatal ? ' [fatal]' : ''));
+        if (data && data.fatal) onFail('HLS ' + data.details + code);
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // HLS natif (anciens iPhone sans MSE). Le proxy n'aide ici que s'il
       // réécrit les manifests côté serveur (proxy-worker.js le fait).
+      dbg('   moteur = HLS natif (Safari)');
       video.src = srcUrl;
       video.addEventListener('loadedmetadata', function onMeta() {
         video.removeEventListener('loadedmetadata', onMeta); started();
       });
       video.addEventListener('error', function onErr() {
-        video.removeEventListener('error', onErr); onFail();
+        video.removeEventListener('error', onErr);
+        onFail('HLS natif impossible (' + ((video.error && video.error.code) || '?') + ')');
       });
     } else {
+      dbg('   aucun moteur HLS disponible');
       setStatus('error', 'Ce navigateur ne prend pas en charge la lecture HLS.', failActions(ch));
     }
   }
@@ -1242,6 +1322,27 @@
       (proxyReady() ? (proxyMode === 'always' ? 'activé en permanence' : 'activé en secours automatique') : 'désactivé') + '.');
   });
 
+  /* ---------------- Diagnostics UI ---------------- */
+
+  var diagOverlay = document.getElementById('diag-overlay');
+  document.getElementById('diag-open').addEventListener('click', function () {
+    overlay.classList.remove('visible');
+    var box = document.getElementById('diag-log');
+    if (diagLog.length) { box.textContent = diagLog.join('\n'); box.scrollTop = box.scrollHeight; }
+    diagOverlay.classList.add('visible');
+  });
+  diagOverlay.addEventListener('click', function (e) {
+    if (e.target === diagOverlay) diagOverlay.classList.remove('visible');
+  });
+  document.getElementById('diag-copy').addEventListener('click', function () {
+    copyText(diagLog.join('\n') || '(vide)');
+  });
+  document.getElementById('diag-clear').addEventListener('click', function () {
+    diagLog.length = 0;
+    document.getElementById('diag-log').textContent = 'Journal vidé.';
+  });
+
+  dbg('Dpiptv prêt · proxy=' + proxyMode + ' · https=' + (location.protocol === 'https:'));
   loadPlaylist('fr');
 })();
 </script>
