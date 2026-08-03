@@ -58,6 +58,23 @@ npm run playlist:test -- streams/fr.m3u -- -t 10000 --fix
 
 ⚠️ Ce test nécessite un accès internet direct aux serveurs de streaming ; il peut être long sur les grosses playlists.
 
+## Tester sur smartphone — lecteur web intégré 📱
+
+Le fichier [`player.html`](player.html) est un mini lecteur IPTV (une seule page, sans dépendance à installer) pensé pour tester les playlists depuis un téléphone :
+
+- sélection de playlist par pastilles (FR, CH, BE…) ou par code libre (`us`, `uk_sport`…)
+- liste des chaînes avec logo, groupe et recherche instantanée
+- lecture HLS directe dans le navigateur (hls.js, ou HLS natif sur iPhone)
+- bouton ⧉ sur chaque chaîne pour copier le lien du flux et l'ouvrir dans VLC
+
+**Pour l'activer** : dans GitHub → *Settings → Pages → Deploy from a branch*, choisir la branche et le dossier `/ (root)`. La page est ensuite accessible à :
+
+```
+https://dp287517.github.io/Dpiptv/player.html
+```
+
+> ⚠️ Limites du navigateur (pas de la playlist) : les flux en `http://` non sécurisé et les serveurs sans en-têtes CORS ne sont pas lisibles depuis une page web — la page l'indique et propose de copier le lien vers VLC. Une app IPTV (TiviMate, IPTV Smarters, GSE…) reste la référence pour un test complet.
+
 ## Tester dans un lecteur vidéo (VLC, etc.)
 
 Colle l'URL brute d'une playlist de ton fork dans VLC (*Média → Ouvrir un flux réseau*) :
