@@ -83,6 +83,15 @@ Les navigateurs bloquent deux catégories de flux : ceux en `http://` non sécur
 
 **Pour un proxy personnel fiable (gratuit, ~5 min)** : déploie [`proxy-worker.js`](proxy-worker.js) sur Cloudflare Workers (instructions en tête du fichier), puis colle son URL dans ⚙️ : `https://<ton-worker>.workers.dev/?url={url}`. Ce worker réécrit aussi les manifests HLS côté serveur, ce qui fait fonctionner la lecture HLS native (anciens iPhone).
 
+### Ajouter tes propres liens (➕ Mes liens)
+
+Le bouton **➕ Mes liens** (en haut, ou la pastille `＋ Mes liens` en fin de liste) permet de coller n'importe quel lien :
+
+- **Une playlist `.m3u`** → « Ajouter la playlist » : elle est enregistrée sur l'appareil (localStorage), apparaît comme une pastille verte `★` réutilisable, et ses chaînes se chargent dans la liste.
+- **Un flux direct** (`.m3u8`, `.ts`…) → « Lire ce flux » : lecture immédiate, sans l'enregistrer.
+
+Les liens `http://` ou sans CORS passent automatiquement par le proxy (comme les chaînes du repo). Tu peux supprimer une playlist enregistrée depuis le panneau (🗑). Tu peux aussi coller une URL directement dans le champ « Code » en haut. Les liens ajoutés restent sous ta responsabilité.
+
 ### Ouvrir dans VLC en un tap
 
 Chaque chaîne a un bouton **VLC** (et les messages d'erreur en proposent un gros) : sur iPhone il ouvre l'app VLC directement sur le flux (`vlc-x-callback://`), sur Android via un intent. VLC lit tout — http, CORS, DASH — c'est la valeur sûre quand le navigateur bloque.
