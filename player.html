@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Dpiptv — Lecteur de test</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --surface: #181c23;
+    --surface2: #212734;
+    --text: #e8eaf0;
+    --muted: #8b93a7;
+    --accent: #4f8cff;
+    --ok: #34c77b;
+    --warn: #f5a623;
+    --err: #ef5350;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 12px 14px 8px;
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 1.05rem; font-weight: 600; }
+  header h1 span { color: var(--accent); }
+  .player-wrap {
+    background: #000;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  video {
+    width: 100%;
+    max-height: 40vh;
+    aspect-ratio: 16 / 9;
+    display: block;
+    background: #000;
+  }
+  #now-playing {
+    padding: 8px 14px;
+    background: var(--surface);
+    font-size: .9rem;
+    display: none;
+    align-items: center;
+    gap: 8px;
+  }
+  #now-playing.visible { display: flex; }
+  #now-playing .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok);
+    flex: none;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 50% { opacity: .3; } }
+  #status {
+    margin: 8px 14px 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: .85rem;
+    line-height: 1.4;
+    display: none;
+  }
+  #status.info  { display: block; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+  #status.warn  { display: block; background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+  #status.error { display: block; background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
+  .controls { padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none;
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid transparent;
+    font-size: .85rem;
+    cursor: pointer;
+  }
+  .chip.active { background: var(--accent); color: #fff; font-weight: 600; }
+  .row { display: flex; gap: 8px; }
+  input[type="search"], input[type="text"] {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--surface2);
+    background: var(--surface);
+    color: var(--text);
+    font-size: .95rem;
+    -webkit-appearance: none;
+  }
+  input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  button.load {
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #count { padding: 0 14px; font-size: .8rem; color: var(--muted); }
+  #channels { list-style: none; padding: 8px 10px 30px; display: flex; flex-direction: column; gap: 6px; }
+  .channel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border-radius: 12px;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .channel:active { background: var(--surface2); }
+  .channel.playing { border-color: var(--accent); }
+  .channel img.logo {
+    width: 44px; height: 44px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: #fff;
+    flex: none;
+  }
+  .channel .logo-fallback {
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: var(--muted);
+    flex: none;
+  }
+  .channel .meta { flex: 1; min-width: 0; }
+  .channel .name { font-size: .95rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .channel .group { font-size: .75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .channel .badge {
+    flex: none;
+    font-size: .65rem;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+  .channel .badge.http { color: var(--warn); }
+  .channel .copy {
+    flex: none;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.15rem;
+    padding: 6px;
+    cursor: pointer;
+  }
+  #empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: .9rem; display: none; }
+  .spinner {
+    width: 26px; height: 26px;
+    border: 3px solid var(--surface2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    margin: 30px auto;
+    animation: spin .8s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="player-wrap">
+  <video id="video" controls playsinline autoplay></video>
+</div>
+<div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span></div>
+<div id="status"></div>
+
+<header>
+  <h1>📺 <span>Dpiptv</span> — Lecteur de test</h1>
+</header>
+
+<div class="controls">
+  <div class="chips" id="chips"></div>
+  <div class="row">
+    <input type="text" id="playlist-input" placeholder="Code playlist (ex: fr, ch, us, uk_sport…)" value="fr">
+    <button class="load" id="load-btn">Charger</button>
+  </div>
+  <div class="row">
+    <input type="search" id="search" placeholder="🔍 Rechercher une chaîne…">
+  </div>
+</div>
+
+<div id="count"></div>
+<div class="spinner" id="spinner"></div>
+<div id="empty">Aucune chaîne trouvée.</div>
+<ul id="channels"></ul>
+
+<script>
+(function () {
+  'use strict';
+
+  var REPO = 'dp287517/Dpiptv';
+  var BRANCH = 'master';
+  var QUICK = ['fr', 'ch', 'be', 'uk', 'us', 'de', 'it', 'es', 'pt'];
+
+  var video = document.getElementById('video');
+  var statusEl = document.getElementById('status');
+  var channelsEl = document.getElementById('channels');
+  var countEl = document.getElementById('count');
+  var searchEl = document.getElementById('search');
+  var inputEl = document.getElementById('playlist-input');
+  var spinnerEl = document.getElementById('spinner');
+  var emptyEl = document.getElementById('empty');
+  var nowPlayingEl = document.getElementById('now-playing');
+  var nowPlayingName = document.getElementById('now-playing-name');
+  var chipsEl = document.getElementById('chips');
+
+  var channels = [];
+  var hls = null;
+  var currentItem = null;
+
+  function setStatus(kind, html) {
+    statusEl.className = kind || '';
+    statusEl.innerHTML = html || '';
+  }
+
+  function rawUrl(code) {
+    return 'https://raw.githubusercontent.com/' + REPO + '/' + BRANCH + '/streams/' + code + '.m3u';
+  }
+
+  function parseM3U(text) {
+    var lines = text.split(/\r?\n/);
+    var result = [];
+    var pending = null;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.indexOf('#EXTINF') === 0) {
+        var attrs = {};
+        var re = /([a-zA-Z0-9-]+)="([^"]*)"/g;
+        var m;
+        while ((m = re.exec(line)) !== null) attrs[m[1]] = m[2];
+        var comma = line.lastIndexOf(',');
+        pending = {
+          name: comma >= 0 ? line.slice(comma + 1).trim() : 'Sans nom',
+          logo: attrs['tvg-logo'] || '',
+          group: attrs['group-title'] || '',
+          id: attrs['tvg-id'] || ''
+        };
+      } else if (line.charAt(0) === '#') {
+        continue; // #EXTVLCOPT, #EXTM3U, etc.
+      } else if (pending) {
+        pending.url = line;
+        result.push(pending);
+        pending = null;
+      }
+    }
+    return result;
+  }
+
+  function render(filter) {
+    var q = (filter || '').toLowerCase();
+    channelsEl.innerHTML = '';
+    var shown = 0;
+    channels.forEach(function (ch, idx) {
+      if (q && ch.name.toLowerCase().indexOf(q) < 0 && ch.group.toLowerCase().indexOf(q) < 0) return;
+      shown++;
+      var li = document.createElement('li');
+      li.className = 'channel';
+      li.dataset.idx = idx;
+
+      if (ch.logo) {
+        var img = document.createElement('img');
+        img.className = 'logo';
+        img.loading = 'lazy';
+        img.src = ch.logo;
+        img.alt = '';
+        img.onerror = function () {
+          var fb = document.createElement('div');
+          fb.className = 'logo-fallback';
+          fb.textContent = ch.name.charAt(0).toUpperCase();
+          this.replaceWith(fb);
+        };
+        li.appendChild(img);
+      } else {
+        var fb = document.createElement('div');
+        fb.className = 'logo-fallback';
+        fb.textContent = ch.name.charAt(0).toUpperCase();
+        li.appendChild(fb);
+      }
+
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      var nm = document.createElement('div');
+      nm.className = 'name';
+      nm.textContent = ch.name;
+      meta.appendChild(nm);
+      if (ch.group) {
+        var gr = document.createElement('div');
+        gr.className = 'group';
+        gr.textContent = ch.group;
+        meta.appendChild(gr);
+      }
+      li.appendChild(meta);
+
+      var isInsecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
+      var badge = document.createElement('span');
+      badge.className = 'badge' + (isInsecure ? ' http' : '');
+      badge.textContent = isInsecure ? 'http ⚠' : (ch.url.indexOf('.mpd') >= 0 ? 'dash' : 'hls');
+      li.appendChild(badge);
+
+      var copy = document.createElement('button');
+      copy.className = 'copy';
+      copy.title = 'Copier le lien du flux (pour VLC)';
+      copy.textContent = '⧉';
+      copy.addEventListener('click', function (e) {
+        e.stopPropagation();
+        copyText(ch.url);
+      });
+      li.appendChild(copy);
+
+      li.addEventListener('click', function () { play(ch, li); });
+      channelsEl.appendChild(li);
+    });
+    countEl.textContent = channels.length ? shown + ' / ' + channels.length + ' chaînes' : '';
+    emptyEl.style.display = channels.length && !shown ? 'block' : 'none';
+  }
+
+  function copyText(text) {
+    function done() { setStatus('info', 'Lien copié ✔ — colle-le dans VLC ou ton app IPTV.'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else {
+      fallbackCopy(text);
+      done();
+    }
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+  }
+
+  function stopPlayback() {
+    if (hls) { hls.destroy(); hls = null; }
+    video.removeAttribute('src');
+    video.load();
+  }
+
+  function markPlaying(li) {
+    var prev = channelsEl.querySelector('.channel.playing');
+    if (prev) prev.classList.remove('playing');
+    if (li) li.classList.add('playing');
+  }
+
+  function play(ch, li) {
+    stopPlayback();
+    markPlaying(li);
+    currentItem = ch;
+    nowPlayingEl.classList.add('visible');
+    nowPlayingName.textContent = ch.name;
+    setStatus('', '');
+
+    if (ch.url.indexOf('http:') === 0 && location.protocol === 'https:') {
+      setStatus('warn',
+        '⚠️ « ' + escapeHtml(ch.name) + ' » est diffusé en <b>http://</b> non sécurisé : le navigateur bloque sa lecture depuis une page https. ' +
+        'Touche ⧉ pour copier le lien et ouvre-le dans <b>VLC</b> ou une app IPTV.');
+      return;
+    }
+    if (ch.url.indexOf('.mpd') >= 0) {
+      setStatus('warn', '⚠️ Flux DASH (.mpd) non pris en charge par ce lecteur. Copie le lien (⧉) et ouvre-le dans VLC.');
+      return;
+    }
+
+    setStatus('info', 'Chargement de « ' + escapeHtml(ch.name) + ' »…');
+
+    if (window.Hls && Hls.isSupported()) {
+      hls = new Hls({ maxBufferLength: 20 });
+      hls.loadSource(ch.url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, function () {
+        setStatus('', '');
+        video.play().catch(function () { /* autoplay refusé : l'utilisateur touchera play */ });
+      });
+      hls.on(Hls.Events.ERROR, function (_evt, data) {
+        if (data.fatal) {
+          stopPlayback();
+          setStatus('error',
+            '❌ Impossible de lire « ' + escapeHtml(ch.name) + ' » depuis le navigateur (lien mort, ou serveur sans CORS). ' +
+            'Ce n’est pas forcément un flux cassé : essaie-le dans VLC via ⧉, ou choisis une autre chaîne.');
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // iOS Safari : HLS natif
+      video.src = ch.url;
+      video.addEventListener('loadedmetadata', function onMeta() {
+        video.removeEventListener('loadedmetadata', onMeta);
+        setStatus('', '');
+        video.play().catch(function () { /* ignore */ });
+      });
+      video.addEventListener('error', function onErr() {
+        video.removeEventListener('error', onErr);
+        setStatus('error',
+          '❌ Impossible de lire « ' + escapeHtml(ch.name) + ' » (lien mort ou bloqué). Essaie dans VLC via ⧉, ou choisis une autre chaîne.');
+      });
+    } else {
+      setStatus('error', 'Ce navigateur ne prend pas en charge la lecture HLS.');
+    }
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function loadPlaylist(code) {
+    code = (code || '').trim().replace(/\.m3u$/i, '');
+    if (!code) return;
+    inputEl.value = code;
+    setActiveChip(code);
+    stopPlayback();
+    markPlaying(null);
+    nowPlayingEl.classList.remove('visible');
+    channels = [];
+    render('');
+    setStatus('', '');
+    spinnerEl.style.display = 'block';
+
+    fetch(rawUrl(code))
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function (text) {
+        channels = parseM3U(text);
+        spinnerEl.style.display = 'none';
+        if (!channels.length) {
+          setStatus('warn', 'Playlist vide ou format inattendu.');
+        }
+        searchEl.value = '';
+        render('');
+      })
+      .catch(function (err) {
+        spinnerEl.style.display = 'none';
+        setStatus('error',
+          '❌ Impossible de charger <b>streams/' + escapeHtml(code) + '.m3u</b> (' + escapeHtml(err.message) + '). ' +
+          'Vérifie le code de la playlist — la liste complète est dans PLAYLISTS.md.');
+      });
+  }
+
+  function setActiveChip(code) {
+    var chips = chipsEl.querySelectorAll('.chip');
+    for (var i = 0; i < chips.length; i++) {
+      chips[i].classList.toggle('active', chips[i].dataset.code === code);
+    }
+  }
+
+  QUICK.forEach(function (code) {
+    var b = document.createElement('button');
+    b.className = 'chip';
+    b.dataset.code = code;
+    b.textContent = code.toUpperCase();
+    b.addEventListener('click', function () { loadPlaylist(code); });
+    chipsEl.appendChild(b);
+  });
+
+  document.getElementById('load-btn').addEventListener('click', function () {
+    loadPlaylist(inputEl.value);
+  });
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') loadPlaylist(inputEl.value);
+  });
+
+  var searchTimer = null;
+  searchEl.addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () { render(searchEl.value); }, 150);
+  });
+
+  loadPlaylist('fr');
+})();
+</script>
+</body>
+</html>
