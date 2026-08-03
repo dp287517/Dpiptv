@@ -85,7 +85,11 @@ Les navigateurs bloquent deux catégories de flux : ceux en `http://` non sécur
 
 ### Ajouter tes propres liens (➕ Mes liens)
 
-Le bouton **➕ Mes liens** (en haut, ou la pastille `＋ Mes liens` en fin de liste) permet de coller n'importe quel lien, avec métadonnées :
+Le bouton **🔒 Mes liens** est protégé par mot de passe : à la première ouverture il demande le mot de passe, puis le déverrouillage est mémorisé sur l'appareil (bouton **🔒 Verrouiller** dans le panneau pour le redemander). Seule l'**empreinte SHA-256** du mot de passe est stockée dans la page — jamais le mot de passe en clair.
+
+> ⚠️ Il s'agit d'un verrou « anti-curieux » : la page étant publique et statique, ce contrôle côté navigateur empêche un visiteur occasionnel d'ouvrir le panneau, mais ne constitue pas une sécurité forte. Ne mets pas d'information sensible derrière.
+
+Le bouton **🔒 Mes liens** (en haut, ou la pastille `🔒 Mes liens` en fin de liste) permet ensuite de coller n'importe quel lien, avec métadonnées :
 
 - **Nom** de la chaîne, **langue / catégorie** (boutons rapides Français, Sport, Arabe… ou texte libre) et **icône** (lien d'un logo `.png`/`.jpg` **ou un emoji** comme ⚽ 🎬 📺).
 - **➕ Ajouter la chaîne** : enregistre une chaîne individuelle dans **⭐ Mes chaînes** (pastille dédiée) avec son nom, sa catégorie et son icône. Cherchable et regroupable comme les chaînes du repo.
