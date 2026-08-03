@@ -85,12 +85,14 @@ Les navigateurs bloquent deux catégories de flux : ceux en `http://` non sécur
 
 ### Ajouter tes propres liens (➕ Mes liens)
 
-Le bouton **➕ Mes liens** (en haut, ou la pastille `＋ Mes liens` en fin de liste) permet de coller n'importe quel lien :
+Le bouton **➕ Mes liens** (en haut, ou la pastille `＋ Mes liens` en fin de liste) permet de coller n'importe quel lien, avec métadonnées :
 
-- **Une playlist `.m3u`** → « Ajouter la playlist » : elle est enregistrée sur l'appareil (localStorage), apparaît comme une pastille verte `★` réutilisable, et ses chaînes se chargent dans la liste.
-- **Un flux direct** (`.m3u8`, `.ts`…) → « Lire ce flux » : lecture immédiate, sans l'enregistrer.
+- **Nom** de la chaîne, **langue / catégorie** (boutons rapides Français, Sport, Arabe… ou texte libre) et **icône** (lien d'un logo `.png`/`.jpg` **ou un emoji** comme ⚽ 🎬 📺).
+- **➕ Ajouter la chaîne** : enregistre une chaîne individuelle dans **⭐ Mes chaînes** (pastille dédiée) avec son nom, sa catégorie et son icône. Cherchable et regroupable comme les chaînes du repo.
+- **▶ Lire** : lecture immédiate du flux, sans l'enregistrer.
+- **📃 C'est une playlist .m3u** : importe une playlist entière → enregistrée comme pastille verte `★` réutilisable.
 
-Les liens `http://` ou sans CORS passent automatiquement par le proxy (comme les chaînes du repo). Tu peux supprimer une playlist enregistrée depuis le panneau (🗑). Tu peux aussi coller une URL directement dans le champ « Code » en haut. Les liens ajoutés restent sous ta responsabilité.
+Tout est stocké sur l'appareil (localStorage) et persiste après rechargement ; chaque entrée est supprimable (🗑) depuis le panneau. Les liens `http://` ou sans CORS passent automatiquement par le proxy. Tu peux aussi coller une URL directement dans le champ « Code » en haut. Les liens ajoutés restent sous ta responsabilité.
 
 ### Ouvrir dans VLC en un tap
 
