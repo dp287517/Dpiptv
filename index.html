@@ -132,6 +132,8 @@
     font-weight: 600;
     cursor: pointer;
   }
+  #global-btn { background: var(--surface2); flex: none; }
+  #global-btn.active { background: var(--accent); }
   #count { padding: 0 14px; font-size: .8rem; color: var(--muted); }
   #channels { list-style: none; padding: 8px 10px 30px; display: flex; flex-direction: column; gap: 6px; }
   .channel {
@@ -246,6 +248,7 @@
   </div>
   <div class="row">
     <input type="search" id="search" placeholder="🔍 Rechercher une chaîne…">
+    <button class="load" id="global-btn" title="Rechercher dans toutes les playlists (tous pays)">🌍</button>
   </div>
 </div>
 
@@ -466,12 +469,107 @@
     return result;
   }
 
+  /* ---------------- Global search (all playlists) ---------------- */
+
+  var globalMode = false;
+  var globalIndex = null;
+  var globalLoadingPromise = null;
+  var MAX_GLOBAL_RESULTS = 400;
+
+  function loadGlobalIndex() {
+    if (globalLoadingPromise) return globalLoadingPromise;
+    countEl.textContent = 'Chargement de la liste des playlists…';
+    globalLoadingPromise = fetch('https://api.github.com/repos/' + REPO + '/contents/streams?ref=' + BRANCH)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (files) {
+        var names = files
+          .filter(function (f) { return /\.m3u$/.test(f.name); })
+          .map(function (f) { return f.name.replace(/\.m3u$/, ''); });
+        var idx = [];
+        var done = 0, i = 0, active = 0, CONC = 12;
+        return new Promise(function (resolve) {
+          function next() {
+            if (done === names.length) { resolve(idx); return; }
+            while (active < CONC && i < names.length) {
+              (function (code) {
+                active++;
+                fetch(rawUrl(code))
+                  .then(function (r) { return r.ok ? r.text() : ''; })
+                  .catch(function () { return ''; })
+                  .then(function (text) {
+                    if (text) {
+                      parseM3U(text).forEach(function (ch) { ch.src = code; idx.push(ch); });
+                    }
+                    done++; active--;
+                    countEl.textContent = 'Indexation mondiale : ' + done + ' / ' + names.length + ' playlists…';
+                    next();
+                  });
+              })(names[i++]);
+            }
+          }
+          next();
+        });
+      })
+      .then(function (idx) {
+        globalIndex = idx;
+        return idx;
+      })
+      .catch(function (err) {
+        globalLoadingPromise = null;
+        setStatus('error', '❌ Impossible de charger l’index mondial (' + escapeHtml(err.message) + '). Réessaie.');
+        throw err;
+      });
+    return globalLoadingPromise;
+  }
+
+  document.getElementById('global-btn').addEventListener('click', function () {
+    globalMode = !globalMode;
+    this.classList.toggle('active', globalMode);
+    searchEl.placeholder = globalMode
+      ? '🌍 Rechercher dans toutes les playlists…'
+      : '🔍 Rechercher une chaîne…';
+    if (globalMode && !globalIndex) {
+      loadGlobalIndex().then(function () { render(searchEl.value); }, function () {});
+    }
+    render(searchEl.value);
+    searchEl.focus();
+  });
+
+  /* ---------------- Rendering ---------------- */
+
   function render(filter) {
     var q = (filter || '').toLowerCase();
     channelsEl.innerHTML = '';
     var shown = 0;
-    channels.forEach(function (ch, idx) {
-      if (q && ch.name.toLowerCase().indexOf(q) < 0 && ch.group.toLowerCase().indexOf(q) < 0) return;
+
+    var source, truncated = false;
+    if (globalMode) {
+      if (!globalIndex) {
+        emptyEl.style.display = 'none';
+        return; // progress is shown in countEl by loadGlobalIndex
+      }
+      if (q.length < 2) {
+        countEl.textContent = globalIndex.length + ' chaînes indexées (tous pays) — tape au moins 2 lettres';
+        emptyEl.style.display = 'none';
+        return;
+      }
+      source = globalIndex.filter(function (ch) {
+        return ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0;
+      });
+      if (source.length > MAX_GLOBAL_RESULTS) {
+        source = source.slice(0, MAX_GLOBAL_RESULTS);
+        truncated = true;
+      }
+    } else {
+      source = channels.filter(function (ch) {
+        return !q || ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0;
+      });
+    }
+
+    source.forEach(function (ch, idx) {
       shown++;
       var li = document.createElement('li');
       li.className = 'channel';
@@ -503,10 +601,12 @@
       nm.className = 'name';
       nm.textContent = ch.name;
       meta.appendChild(nm);
-      if (ch.group) {
+      var groupText = ch.group || '';
+      if (ch.src) groupText = (groupText ? groupText + ' · ' : '') + 'Playlist ' + ch.src.toUpperCase();
+      if (groupText) {
         var gr = document.createElement('div');
         gr.className = 'group';
-        gr.textContent = ch.group;
+        gr.textContent = groupText;
         meta.appendChild(gr);
       }
       li.appendChild(meta);
@@ -538,8 +638,14 @@
       li.addEventListener('click', function () { play(ch, li, false); });
       channelsEl.appendChild(li);
     });
-    countEl.textContent = channels.length ? shown + ' / ' + channels.length + ' chaînes' : '';
-    emptyEl.style.display = channels.length && !shown ? 'block' : 'none';
+    if (globalMode) {
+      countEl.textContent = shown + (truncated ? '+' : '') + ' résultat(s) sur ' + globalIndex.length +
+        ' chaînes (tous pays)' + (truncated ? ' — affine la recherche' : '');
+      emptyEl.style.display = shown ? 'none' : 'block';
+    } else {
+      countEl.textContent = channels.length ? shown + ' / ' + channels.length + ' chaînes' : '';
+      emptyEl.style.display = channels.length && !shown ? 'block' : 'none';
+    }
   }
 
   function copyText(text) {
@@ -669,6 +775,11 @@
   function loadPlaylist(code) {
     code = (code || '').trim().replace(/\.m3u$/i, '');
     if (!code) return;
+    if (globalMode) {
+      globalMode = false;
+      document.getElementById('global-btn').classList.remove('active');
+      searchEl.placeholder = '🔍 Rechercher une chaîne…';
+    }
     inputEl.value = code;
     setActiveChip(code);
     stopPlayback();
