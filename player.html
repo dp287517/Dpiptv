@@ -255,7 +255,7 @@
 <header>
   <h1>📺 <span>Dpiptv</span> — Lecteur de test</h1>
   <div style="display:flex;gap:8px">
-    <button id="sources-btn" title="Ajouter mes propres liens">➕ Mes liens</button>
+    <button id="sources-btn" title="Ajouter mes propres liens (protégé par mot de passe)">🔒 Mes liens</button>
     <button id="settings-btn" title="Réglages du proxy">⚙️</button>
   </div>
 </header>
@@ -305,6 +305,7 @@
     </div>
     <label>Mes playlists importées</label>
     <div id="src-list"></div>
+    <button class="action-btn" id="src-lock" style="width:100%">🔒 Verrouiller « Mes liens »</button>
   </div>
 </div>
 
@@ -952,8 +953,8 @@
     });
     var add = document.createElement('button');
     add.className = 'chip add';
-    add.textContent = '＋ Mes liens';
-    add.addEventListener('click', openSources);
+    add.textContent = '🔒 Mes liens';
+    add.addEventListener('click', function () { requireUnlock(openSources); });
     chipsEl.appendChild(add);
   }
 
@@ -1045,7 +1046,48 @@
     } catch (e) { return 'Lien'; }
   }
 
-  document.getElementById('sources-btn').addEventListener('click', openSources);
+  /* ---------------- Access lock for "Mes liens" ---------------- */
+  // Soft lock: the SHA-256 of the password is stored, never the password
+  // itself. This keeps casual visitors out of the panel on a public page;
+  // it is not strong security (a static page can always be inspected).
+  var UNLOCK_HASH = '078b4045d476b200dc3bc77e52cbc8110ecc84d8e6b3116027a9ae8b1f8f87b4';
+  var unlocked = localStorage.getItem('dpiptv.unlocked') === '1';
+
+  function sha256Hex(str) {
+    var buf = new TextEncoder().encode(str);
+    return crypto.subtle.digest('SHA-256', buf).then(function (d) {
+      return Array.prototype.map.call(new Uint8Array(d), function (b) {
+        return ('0' + b.toString(16)).slice(-2);
+      }).join('');
+    });
+  }
+
+  function requireUnlock(cb) {
+    if (unlocked) { cb(); return; }
+    var pw = prompt('🔒 Accès « Mes liens » réservé — mot de passe :');
+    if (pw == null) return;
+    sha256Hex(pw).then(function (h) {
+      if (h === UNLOCK_HASH) {
+        unlocked = true;
+        localStorage.setItem('dpiptv.unlocked', '1');
+        cb();
+      } else {
+        setStatus('error', '🔒 Mot de passe incorrect.');
+      }
+    }).catch(function () {
+      setStatus('error', '🔒 Vérification impossible sur ce navigateur.');
+    });
+  }
+
+  function lockSources() {
+    unlocked = false;
+    localStorage.removeItem('dpiptv.unlocked');
+    closeSources();
+    setStatus('info', '🔒 « Mes liens » verrouillé. Le mot de passe sera redemandé.');
+  }
+
+  document.getElementById('sources-btn').addEventListener('click', function () { requireUnlock(openSources); });
+  document.getElementById('src-lock').addEventListener('click', lockSources);
   srcOverlay.addEventListener('click', function (e) { if (e.target === srcOverlay) closeSources(); });
 
   // ▶ Play once, honoring the name/group/icon entered
