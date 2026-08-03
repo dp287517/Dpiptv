@@ -191,6 +191,7 @@
     text-decoration: none;
   }
   .channel .mini-btn.vlc { color: var(--vlc); font-size: .7rem; font-weight: 700; border: 1px solid var(--vlc); border-radius: 6px; padding: 4px 6px; }
+  .channel .mini-btn.hide { color: var(--err); font-weight: 700; }
   #empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: .9rem; display: none; }
   .spinner {
     width: 26px; height: 26px;
@@ -363,6 +364,7 @@
       le bouton VLC reste la valeur sûre.
     </p>
     <button class="action-btn primary" id="settings-save">Enregistrer</button>
+    <button class="action-btn" id="unhide-all" style="width:100%">👁 Réafficher les chaînes masquées</button>
     <button class="action-btn" id="diag-open" style="width:100%">🐞 Diagnostic (logs de lecture)</button>
   </div>
 </div>
@@ -408,6 +410,35 @@
   var mpegts = null;
   var dash = null;
   var playToken = 0;
+
+  /* ---------------- Hidden channels ---------------- */
+  // Channels the user removed from view, keyed by URL, persisted per device.
+  var hidden = {};
+  try {
+    (JSON.parse(localStorage.getItem('dpiptv.hidden') || '[]')).forEach(function (u) { hidden[u] = 1; });
+  } catch (e) { hidden = {}; }
+  function hiddenCount() { return Object.keys(hidden).length; }
+  function saveHidden() { localStorage.setItem('dpiptv.hidden', JSON.stringify(Object.keys(hidden))); }
+  function hideChannel(ch) {
+    hidden[ch.url] = 1;
+    saveHidden();
+    render(searchEl.value);
+    var undo = document.createElement('button');
+    undo.className = 'action-btn';
+    undo.textContent = '↩ Annuler';
+    undo.addEventListener('click', function (e) {
+      e.stopPropagation();
+      delete hidden[ch.url]; saveHidden(); render(searchEl.value);
+      setStatus('info', '« ' + escapeHtml(ch.name) + ' » réaffichée.');
+    });
+    setStatus('info', '« ' + escapeHtml(ch.name) + ' » masquée.', [undo]);
+  }
+  function unhideAll() {
+    hidden = {};
+    saveHidden();
+    render(searchEl.value);
+    setStatus('info', 'Toutes les chaînes masquées ont été réaffichées.');
+  }
 
   /* ---------------- Proxy settings ---------------- */
 
@@ -674,7 +705,7 @@
         return;
       }
       source = globalIndex.filter(function (ch) {
-        return ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0;
+        return !hidden[ch.url] && (ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0);
       });
       if (source.length > MAX_GLOBAL_RESULTS) {
         source = source.slice(0, MAX_GLOBAL_RESULTS);
@@ -682,7 +713,7 @@
       }
     } else {
       source = channels.filter(function (ch) {
-        return !q || ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0;
+        return !hidden[ch.url] && (!q || ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0);
       });
     }
 
@@ -751,6 +782,13 @@
         copyText(ch.url);
       });
       li.appendChild(copy);
+
+      var hide = document.createElement('button');
+      hide.className = 'mini-btn hide';
+      hide.title = 'Masquer cette chaîne';
+      hide.textContent = '✕';
+      hide.addEventListener('click', function (e) { e.stopPropagation(); hideChannel(ch); });
+      li.appendChild(hide);
 
       li.addEventListener('click', function () { play(ch, li, false); });
       channelsEl.appendChild(li);
@@ -1373,10 +1411,21 @@
   var proxyUrlInput = document.getElementById('proxy-url');
   var proxyModeSelect = document.getElementById('proxy-mode');
 
+  var unhideBtn = document.getElementById('unhide-all');
+  function refreshUnhideBtn() {
+    var n = hiddenCount();
+    unhideBtn.style.display = n ? 'block' : 'none';
+    unhideBtn.textContent = '👁 Réafficher les chaînes masquées (' + n + ')';
+  }
   document.getElementById('settings-btn').addEventListener('click', function () {
     proxyUrlInput.value = proxyTpl;
     proxyModeSelect.value = proxyMode;
+    refreshUnhideBtn();
     overlay.classList.add('visible');
+  });
+  unhideBtn.addEventListener('click', function () {
+    unhideAll();
+    overlay.classList.remove('visible');
   });
   overlay.addEventListener('click', function (e) {
     if (e.target === overlay) overlay.classList.remove('visible');
