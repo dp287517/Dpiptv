@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#0f1115">
 <title>Dpiptv — Lecteur de test</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js"></script>
 <style>
   :root {
     --bg: #0f1115;
@@ -362,6 +364,8 @@
 
   var channels = [];
   var hls = null;
+  var mpegts = null;
+  var dash = null;
   var playToken = 0;
 
   /* ---------------- Proxy settings ---------------- */
@@ -667,7 +671,7 @@
       var isInsecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
       var badge = document.createElement('span');
       badge.className = 'badge' + (isInsecure ? ' http' : '');
-      badge.textContent = isInsecure ? 'http' : (ch.url.indexOf('.mpd') >= 0 ? 'dash' : 'hls');
+      badge.textContent = isInsecure ? 'http' : detectKind(ch.url);
       li.appendChild(badge);
 
       var vlc = document.createElement('a');
@@ -723,9 +727,21 @@
 
   function stopPlayback() {
     playToken++;
-    if (hls) { hls.destroy(); hls = null; }
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    if (mpegts) { try { mpegts.destroy(); } catch (e) {} mpegts = null; }
+    if (dash) { try { dash.reset(); } catch (e) {} dash = null; }
     video.removeAttribute('src');
     video.load();
+  }
+
+  // Decide which playback engine a URL needs, from its extension.
+  function detectKind(url) {
+    var u = url.split('?')[0].toLowerCase();
+    if (/\.mpd$/.test(u)) return 'dash';
+    if (/\.m3u8?$/.test(u)) return 'hls';
+    if (/\.(ts|mts|m2ts|mpeg|mpg)$/.test(u)) return 'mpegts';
+    if (/\.(mp4|m4v|webm|ogg|ogv|mov)$/.test(u)) return 'file';
+    return 'hls'; // most IPTV links without an extension are HLS
   }
 
   function markPlaying(li) {
@@ -749,14 +765,7 @@
     setStatus('', '');
 
     var insecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
-
-    if (ch.url.indexOf('.mpd') >= 0) {
-      setStatus('warn',
-        '⚠️ Flux DASH (.mpd) non pris en charge par ce lecteur web. Ouvre-le dans VLC :',
-        failActions(ch));
-      return;
-    }
-
+    var kind = detectKind(ch.url);
     var useProxy = !!viaProxy || (proxyMode === 'always' && proxyReady());
     if (insecure && !useProxy) {
       if (proxyReady()) {
@@ -787,6 +796,56 @@
         failActions(ch));
     }
 
+    function started() {
+      if (token !== playToken) return;
+      setStatus('', '');
+      video.play().catch(function () { /* autoplay refusé : l'utilisateur touchera play */ });
+    }
+    // The proxied URL is used when useProxy is on; hls.js uses its own loader instead.
+    var srcUrl = useProxy ? proxify(ch.url) : ch.url;
+
+    // --- DASH (.mpd) ---
+    if (kind === 'dash') {
+      if (!window.dashjs) { setStatus('error', 'Moteur DASH indisponible.', failActions(ch)); return; }
+      dash = dashjs.MediaPlayer().create();
+      dash.on(dashjs.MediaPlayer.events.ERROR, onFail);
+      dash.on('error', onFail);
+      dash.initialize(video, srcUrl, true);
+      dash.on(dashjs.MediaPlayer.events.CAN_PLAY, started);
+      return;
+    }
+
+    // --- Raw MPEG-TS (.ts) or direct file (mp4/webm…): mpegts.js handles both ---
+    if (kind === 'mpegts' || kind === 'file') {
+      if (window.mpegts && window.mpegts.isSupported && window.mpegts.isSupported()) {
+        var type = kind === 'mpegts' ? 'mpegts' : 'mp4';
+        var isLive = kind === 'mpegts';
+        try {
+          mpegts = window.mpegts.createPlayer(
+            { type: type, isLive: isLive, url: srcUrl },
+            { enableWorker: true, liveBufferLatencyChasing: isLive, lazyLoad: false }
+          );
+          mpegts.on(window.mpegts.Events.ERROR, onFail);
+          mpegts.attachMediaElement(video);
+          mpegts.load();
+          video.addEventListener('canplay', function onC() {
+            video.removeEventListener('canplay', onC); started();
+          });
+          return;
+        } catch (e) { /* fall through to native */ }
+      }
+      // Native fallback (Safari can play mp4/mov directly; some can play TS)
+      video.src = srcUrl;
+      video.addEventListener('loadedmetadata', function onMeta() {
+        video.removeEventListener('loadedmetadata', onMeta); started();
+      });
+      video.addEventListener('error', function onErr() {
+        video.removeEventListener('error', onErr); onFail();
+      });
+      return;
+    }
+
+    // --- HLS (.m3u8 or unknown, the IPTV default) ---
     if (window.Hls && Hls.isSupported()) {
       var cfg = { maxBufferLength: 20 };
       if (useProxy) {
@@ -796,27 +855,19 @@
       hls = new Hls(cfg);
       hls.loadSource(ch.url);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, function () {
-        if (token !== playToken) return;
-        setStatus('', '');
-        video.play().catch(function () { /* autoplay refusé : l'utilisateur touchera play */ });
-      });
+      hls.on(Hls.Events.MANIFEST_PARSED, started);
       hls.on(Hls.Events.ERROR, function (_evt, data) {
         if (data.fatal) onFail();
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // HLS natif (anciens iPhone sans MSE). Le proxy n'aide ici que s'il
       // réécrit les manifests côté serveur (proxy-worker.js le fait).
-      video.src = useProxy ? proxify(ch.url) : ch.url;
+      video.src = srcUrl;
       video.addEventListener('loadedmetadata', function onMeta() {
-        video.removeEventListener('loadedmetadata', onMeta);
-        if (token !== playToken) return;
-        setStatus('', '');
-        video.play().catch(function () { /* ignore */ });
+        video.removeEventListener('loadedmetadata', onMeta); started();
       });
       video.addEventListener('error', function onErr() {
-        video.removeEventListener('error', onErr);
-        onFail();
+        video.removeEventListener('error', onErr); onFail();
       });
     } else {
       setStatus('error', 'Ce navigateur ne prend pas en charge la lecture HLS.', failActions(ch));
