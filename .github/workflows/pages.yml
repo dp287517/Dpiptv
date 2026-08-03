@@ -9,33 +9,24 @@ on:
       - player.html
       - .github/workflows/pages.yml
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 concurrency:
   group: pages
   cancel-in-progress: true
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
-      - name: Build site
+      - name: Publish player to gh-pages branch
         run: |
-          mkdir -p _site
-          cp player.html _site/index.html
-          cp player.html _site/player.html
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages
+          git worktree add /tmp/site origin/gh-pages
+          cp player.html /tmp/site/index.html
+          cp player.html /tmp/site/player.html
+          cd /tmp/site
+          git add -A
+          git diff --cached --quiet || git commit -m "Deploy web player"
+          git push origin HEAD:gh-pages
