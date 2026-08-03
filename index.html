@@ -322,6 +322,16 @@
     </div>
     <label>Mes playlists importées</label>
     <div id="src-list"></div>
+    <label>Synchroniser entre appareils</label>
+    <p class="hint">
+      « Mes liens » est enregistré sur cet appareil uniquement. Pour retrouver ta liste
+      sur un autre (Mac, autre téléphone) : <b>Exporter</b> ici → copie le code → sur l'autre
+      appareil, ouvre « Mes liens » → <b>Importer</b> → colle le code.
+    </p>
+    <div class="two-btn">
+      <button class="action-btn" id="src-export">⤴ Exporter</button>
+      <button class="action-btn" id="src-import">⤵ Importer</button>
+    </div>
     <button class="action-btn" id="src-lock" style="width:100%">🔒 Verrouiller « Mes liens »</button>
   </div>
 </div>
@@ -1275,6 +1285,52 @@
     renderChips();
     closeSources();
     loadCustom(cp);
+  });
+
+  // ⤴ Export / ⤵ Import — move "Mes liens" between devices via a copy-paste code
+  function b64encode(str) { return btoa(unescape(encodeURIComponent(str))); }
+  function b64decode(str) { return decodeURIComponent(escape(atob(str))); }
+
+  document.getElementById('src-export').addEventListener('click', function () {
+    if (!customChannels.length && !customSources.length) {
+      setStatus('warn', 'Rien à exporter pour l’instant.');
+      return;
+    }
+    var payload = { v: 1, channels: customChannels, playlists: customSources };
+    var code = 'DPIPTV1:' + b64encode(JSON.stringify(payload));
+    copyText(code);
+    closeSources();
+    setStatus('info', 'Code d’export copié ✔ — envoie-le-toi (Notes, message…) puis <b>Importe</b>-le sur l’autre appareil.');
+  });
+
+  document.getElementById('src-import').addEventListener('click', function () {
+    var code = prompt('Colle ici le code Dpiptv exporté depuis l’autre appareil :');
+    if (code == null) return;
+    code = code.trim();
+    if (code.indexOf('DPIPTV1:') === 0) code = code.slice('DPIPTV1:'.length);
+    var data;
+    try { data = JSON.parse(b64decode(code)); } catch (e) { setStatus('error', 'Code invalide ou incomplet.'); return; }
+    if (!data || (!data.channels && !data.playlists)) { setStatus('error', 'Code non reconnu.'); return; }
+    var seenCh = {}; customChannels.forEach(function (c) { seenCh[c.url] = 1; });
+    var seenPl = {}; customSources.forEach(function (p) { seenPl[p.url] = 1; });
+    var addedC = 0, addedP = 0;
+    (data.channels || []).forEach(function (c) {
+      if (!c || !c.url || seenCh[c.url]) return;
+      seenCh[c.url] = 1;
+      customChannels.push({ id: Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
+        name: c.name || 'Chaîne', url: c.url, group: c.group || '', logo: c.logo || '' });
+      addedC++;
+    });
+    (data.playlists || []).forEach(function (p) {
+      if (!p || !p.url || seenPl[p.url]) return;
+      seenPl[p.url] = 1;
+      customSources.push({ id: Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
+        name: p.name || 'Playlist', url: p.url });
+      addedP++;
+    });
+    saveMyChannels(); saveCustom();
+    renderChips(); renderMyList(); renderSrcList();
+    setStatus('info', 'Import terminé : ' + addedC + ' chaîne(s) et ' + addedP + ' playlist(s) ajoutée(s).');
   });
 
   renderChips();
