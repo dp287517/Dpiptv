@@ -73,7 +73,21 @@ Le fichier [`player.html`](player.html) est un mini lecteur IPTV (une seule page
 https://dp287517.github.io/Dpiptv/player.html
 ```
 
-> ⚠️ Limites du navigateur (pas de la playlist) : les flux en `http://` non sécurisé et les serveurs sans en-têtes CORS ne sont pas lisibles depuis une page web — la page l'indique et propose de copier le lien vers VLC. Une app IPTV (TiviMate, IPTV Smarters, GSE…) reste la référence pour un test complet.
+### Proxy de flux (pour les chaînes bloquées par le navigateur)
+
+Les navigateurs bloquent deux catégories de flux : ceux en `http://` non sécurisé (mixed content) et ceux dont le serveur n'envoie pas d'en-têtes CORS. Le lecteur intègre un **proxy de flux** qui contourne ces deux blocages :
+
+- **Mode automatique (par défaut)** : si la lecture directe échoue, le lecteur retente via le proxy, sans intervention.
+- Réglable via ⚙️ en haut de la page : toujours / automatique / désactivé, et URL du proxy.
+- Par défaut le lecteur utilise un proxy public (corsproxy.io) — pratique mais lent et limité.
+
+**Pour un proxy personnel fiable (gratuit, ~5 min)** : déploie [`proxy-worker.js`](proxy-worker.js) sur Cloudflare Workers (instructions en tête du fichier), puis colle son URL dans ⚙️ : `https://<ton-worker>.workers.dev/?url={url}`. Ce worker réécrit aussi les manifests HLS côté serveur, ce qui fait fonctionner la lecture HLS native (anciens iPhone).
+
+### Ouvrir dans VLC en un tap
+
+Chaque chaîne a un bouton **VLC** (et les messages d'erreur en proposent un gros) : sur iPhone il ouvre l'app VLC directement sur le flux (`vlc-x-callback://`), sur Android via un intent. VLC lit tout — http, CORS, DASH — c'est la valeur sûre quand le navigateur bloque.
+
+> ⚠️ Ce qui restera illisible partout : les chaînes **mortes** (lien cassé) et les chaînes **géo-bloquées** hors de leur pays (ex. les chaînes marquées `[Geo-blocked]`). Utilise `npm run playlist:test -- streams/xx.m3u --fix` pour purger les liens morts.
 
 ## Tester dans un lecteur vidéo (VLC, etc.)
 
