@@ -479,27 +479,47 @@
     return ProxyLoader;
   }
 
-  /* ---------------- VLC deep links ---------------- */
+  /* ---------------- VLC hand-off ---------------- */
 
-  function vlcUrl(u) {
-    var ua = navigator.userAgent;
-    if (/iPad|iPhone|iPod/.test(ua)) {
-      return 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(u);
-    }
-    if (/Android/i.test(ua)) {
-      var scheme = u.indexOf('https:') === 0 ? 'https' : 'http';
-      return 'intent://' + u.replace(/^https?:\/\//, '') +
+  var UA = navigator.userAgent;
+  var IS_IOS = /iPad|iPhone|iPod/.test(UA);
+  var IS_ANDROID = /Android/i.test(UA);
+  var IS_DESKTOP = !IS_IOS && !IS_ANDROID;
+
+  // Mobile registers a URL scheme; desktop VLC does NOT handle vlc://, so on
+  // desktop we hand off a downloadable .m3u (opens in VLC on double-click if
+  // it is the default player) and also copy the link for manual "Open Network".
+  function openInVlc(url, name) {
+    if (IS_IOS) { window.location.href = 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(url); return; }
+    if (IS_ANDROID) {
+      var scheme = url.indexOf('https:') === 0 ? 'https' : 'http';
+      window.location.href = 'intent://' + url.replace(/^https?:\/\//, '') +
         '#Intent;scheme=' + scheme + ';type=video/*;package=org.videolan.vlc;end';
+      return;
     }
-    return 'vlc://' + u;
-  }
-  function makeVlcLink(u, label) {
+    // Desktop: download a tiny .m3u playlist that VLC opens on double-click.
+    var m3u = '#EXTM3U\n#EXTINF:-1,' + (name || 'Flux') + '\n' + url + '\n';
+    var blob = new Blob([m3u], { type: 'audio/x-mpegurl' });
+    var href = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.className = 'action-btn vlc';
-    a.href = vlcUrl(u);
-    a.textContent = label || '▶ Ouvrir dans VLC';
-    a.addEventListener('click', function (e) { e.stopPropagation(); });
-    return a;
+    a.href = href;
+    a.download = ((name || 'stream').replace(/[^\w.\- ]+/g, '_').trim() || 'stream') + '.m3u';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(href); }, 15000);
+    copyText(url, true);
+    setStatus('info',
+      '⬇️ Fichier <b>.m3u</b> téléchargé — <b>double-clique dessus</b> pour l’ouvrir dans VLC. ' +
+      'Le lien est aussi copié : dans VLC, <b>Fichier → Ouvrir un flux réseau</b> (⌘N), colle-le.');
+  }
+
+  function makeVlcLink(url, name, label) {
+    var b = document.createElement('button');
+    b.className = 'action-btn vlc';
+    b.textContent = label || '▶ Ouvrir dans VLC';
+    b.addEventListener('click', function (e) { e.stopPropagation(); openInVlc(url, name); });
+    return b;
   }
 
   /* ---------------- Status ---------------- */
@@ -522,7 +542,7 @@
     return b;
   }
   function failActions(ch) {
-    return [makeVlcLink(ch.url), makeCopyBtn(ch.url)];
+    return [makeVlcLink(ch.url, ch.name), makeCopyBtn(ch.url)];
   }
   function geoHint(ch) {
     return /geo.?block/i.test(ch.name)
@@ -715,12 +735,11 @@
       badge.textContent = isInsecure ? 'http' : detectKind(ch.url);
       li.appendChild(badge);
 
-      var vlc = document.createElement('a');
+      var vlc = document.createElement('button');
       vlc.className = 'mini-btn vlc';
-      vlc.href = vlcUrl(ch.url);
       vlc.textContent = 'VLC';
-      vlc.title = 'Ouvrir directement dans VLC';
-      vlc.addEventListener('click', function (e) { e.stopPropagation(); });
+      vlc.title = 'Ouvrir dans VLC';
+      vlc.addEventListener('click', function (e) { e.stopPropagation(); openInVlc(ch.url, ch.name); });
       li.appendChild(vlc);
 
       var copy = document.createElement('button');
@@ -746,8 +765,8 @@
     }
   }
 
-  function copyText(text) {
-    function done() { setStatus('info', 'Lien copié ✔ — colle-le dans VLC ou ton app IPTV.'); }
+  function copyText(text, silent) {
+    function done() { if (!silent) setStatus('info', 'Lien copié ✔ — colle-le dans VLC ou ton app IPTV.'); }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
     } else {

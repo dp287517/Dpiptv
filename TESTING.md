@@ -119,7 +119,13 @@ Le panneau **⚙️ → 🐞 Diagnostic** affiche, à l'écran, le journal de la
 
 ### Ouvrir dans VLC en un tap
 
-Chaque chaîne a un bouton **VLC** (et les messages d'erreur en proposent un gros) : sur iPhone il ouvre l'app VLC directement sur le flux (`vlc-x-callback://`), sur Android via un intent. VLC lit tout — http, CORS, DASH — c'est la valeur sûre quand le navigateur bloque.
+Chaque chaîne a un bouton **VLC** (et les messages d'erreur en proposent un gros). Le comportement s'adapte à l'appareil :
+
+- **iPhone / iPad** : ouvre l'app VLC directement sur le flux (`vlc-x-callback://`).
+- **Android** : ouvre VLC via un intent.
+- **Mac / PC** : VLC desktop ne gère pas le schéma `vlc://`, donc le bouton **télécharge un fichier `.m3u`** (double-clic → VLC si c'est ton lecteur par défaut) **et copie le lien** — sinon, dans VLC : *Fichier → Ouvrir un flux réseau* (⌘N), colle.
+
+VLC lit tout — http, CORS, DASH, `.ts` — c'est la valeur sûre quand le navigateur bloque.
 
 > ⚠️ Ce qui restera illisible partout : les chaînes **mortes** (lien cassé) et les chaînes **géo-bloquées** hors de leur pays (ex. les chaînes marquées `[Geo-blocked]`). Utilise `npm run playlist:test -- streams/xx.m3u --fix` pour purger les liens morts.
 
