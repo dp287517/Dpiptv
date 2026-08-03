@@ -111,7 +111,7 @@ Le bouton **🔒 Mes liens** (en haut, ou la pastille `🔒 Mes liens` en fin de
 - **▶ Lire** : lecture immédiate du flux, sans l'enregistrer.
 - **📃 C'est une playlist .m3u** : importe une playlist entière → enregistrée comme pastille verte `★` réutilisable.
 
-Tout est stocké sur l'appareil (localStorage) et persiste après rechargement ; chaque entrée est supprimable (🗑) depuis le panneau. Les liens `http://` ou sans CORS passent automatiquement par le proxy. Tu peux aussi coller une URL directement dans le champ « Code » en haut. Les liens ajoutés restent sous ta responsabilité.
+Tout est stocké sur l'appareil (localStorage) et persiste après rechargement ; chaque entrée est supprimable (🗑) depuis le panneau. Le stockage étant **propre à chaque appareil/navigateur**, un bouton **⤴ Exporter** génère un code copiable et **⤵ Importer** le recolle sur un autre appareil (Mac, autre téléphone) — l'import fusionne sans créer de doublon. Les liens `http://` ou sans CORS passent automatiquement par le proxy. Tu peux aussi coller une URL directement dans le champ « Code » en haut. Les liens ajoutés restent sous ta responsabilité.
 
 ### Diagnostic (🐞 logs de lecture)
 
