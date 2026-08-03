@@ -113,6 +113,10 @@ Le bouton **🔒 Mes liens** (en haut, ou la pastille `🔒 Mes liens` en fin de
 
 Tout est stocké sur l'appareil (localStorage) et persiste après rechargement ; chaque entrée est supprimable (🗑) depuis le panneau. Le stockage étant **propre à chaque appareil/navigateur**, un bouton **⤴ Exporter** génère un code copiable et **⤵ Importer** le recolle sur un autre appareil (Mac, autre téléphone) — l'import fusionne sans créer de doublon. Les liens `http://` ou sans CORS passent automatiquement par le proxy. Tu peux aussi coller une URL directement dans le champ « Code » en haut. Les liens ajoutés restent sous ta responsabilité.
 
+### Masquer des chaînes (✕)
+
+Chaque chaîne a un petit bouton **✕** pour la retirer des listes (par ex. les chaînes mortes, en double, ou qui ne t'intéressent pas). C'est masqué, pas supprimé du repo : un bandeau propose **↩ Annuler** juste après, et **⚙️ → 👁 Réafficher les chaînes masquées (N)** les ramène toutes. Le masquage est stocké par appareil (localStorage) et s'applique aussi à la recherche 🌍.
+
 ### Diagnostic (🐞 logs de lecture)
 
 Le panneau **⚙️ → 🐞 Diagnostic** affiche, à l'écran, le journal de la dernière lecture : format détecté, moteur utilisé, proxy oui/non, événements de succès/échec, code HTTP et une **sonde réseau** qui distingue un hôte mort d'un blocage CORS / mixed-content. Lance une chaîne, rouvre le panneau, lis (ou « Copier les logs » pour partager le texte). Utile pour comprendre un **écran noir** : le journal dit si le flux a chargé, échoué, ou été bloqué par le navigateur.
