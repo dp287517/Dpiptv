@@ -10,62 +10,100 @@
 <script src="https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js"></script>
 <style>
   :root {
-    --bg: #0f1115;
-    --surface: #181c23;
-    --surface2: #212734;
-    --text: #e8eaf0;
-    --muted: #8b93a7;
+    --bg: #0b0b0f;
+    --bg2: #101016;
+    --surface: #17171d;
+    --surface2: #23232c;
+    --surface3: #2d2d38;
+    --text: #f3f3f7;
+    --muted: #9a9aa8;
     --accent: #4f8cff;
+    --brand: #e50914;
     --ok: #34c77b;
     --warn: #f5a623;
     --err: #ef5350;
     --vlc: #ff8800;
+    --radius: 14px;
+    --shadow: 0 8px 28px rgba(0,0,0,.45);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
+  html { overflow-x: hidden; }
   body {
-    background: var(--bg);
+    background:
+      radial-gradient(1200px 500px at 50% -120px, rgba(229,9,20,.18), transparent 70%),
+      var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     display: flex;
     flex-direction: column;
+    min-height: 100%;
+    overflow-x: hidden;
   }
-  header {
-    padding: 12px 14px 8px;
-    background: var(--surface);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px calc(10px);
+    background: linear-gradient(180deg, rgba(10,10,14,.96), rgba(10,10,14,.75) 70%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
-  header h1 { font-size: 1.05rem; font-weight: 600; }
-  header h1 span { color: var(--accent); }
+  .brand { display: flex; align-items: center; gap: 9px; flex: none; }
+  .brand-mark {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--brand), #b0060d);
+    color: #fff; font-weight: 800; font-size: .82rem; letter-spacing: .02em;
+    box-shadow: 0 3px 10px rgba(229,9,20,.4);
+  }
+  .brand-name { font-weight: 800; letter-spacing: .12em; font-size: 1rem; color: #fff; }
+  .top-nav { display: flex; gap: 6px; flex: 1; min-width: 0; overflow-x: auto; }
+  .top-nav::-webkit-scrollbar { display: none; }
+  .nav-link {
+    flex: none; background: none; border: none; color: var(--muted);
+    font-size: .9rem; font-weight: 600; padding: 8px 12px; border-radius: 10px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .nav-link:hover { color: var(--text); background: var(--surface2); }
+  .nav-link.active { color: #fff; }
+  .top-actions { display: flex; gap: 8px; flex: none; }
   #settings-btn, #sources-btn {
     background: var(--surface2);
-    border: none;
+    border: 1px solid var(--surface3);
     color: var(--text);
     font-size: .85rem;
-    padding: 7px 12px;
+    padding: 8px 12px;
     border-radius: 10px;
     cursor: pointer;
     white-space: nowrap;
   }
-  .player-wrap { background: #000; position: sticky; top: 0; z-index: 20; }
+  #settings-btn:hover, #sources-btn:hover { background: var(--surface3); }
+
+  /* ---------- Player ---------- */
+  .player-wrap {
+    background: #000; position: sticky; top: 54px; z-index: 20;
+    box-shadow: 0 10px 30px rgba(0,0,0,.6);
+  }
   video {
     width: 100%;
-    max-height: 40vh;
+    max-height: 46vh;
     aspect-ratio: 16 / 9;
     display: block;
     background: #000;
   }
   #now-playing {
-    padding: 8px 14px;
+    padding: 9px 16px;
     background: var(--surface);
     font-size: .9rem;
     display: none;
     align-items: center;
     gap: 8px;
+    border-bottom: 1px solid var(--surface2);
   }
   #now-playing.visible { display: flex; }
+  #now-playing #now-playing-name { font-weight: 600; }
   #now-playing .dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: var(--ok);
@@ -77,10 +115,12 @@
   #now-playing.buffering #buf { display: inline; }
   #now-playing.buffering #now-playing-name { opacity: .6; }
   @keyframes pulse { 50% { opacity: .3; } }
+
+  /* ---------- Status ---------- */
   #status {
-    margin: 8px 14px 0;
-    padding: 10px 12px;
-    border-radius: 10px;
+    margin: 10px 16px 0;
+    padding: 11px 13px;
+    border-radius: 12px;
     font-size: .85rem;
     line-height: 1.45;
     display: none;
@@ -91,8 +131,8 @@
   #status .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
   .action-btn {
     display: inline-block;
-    padding: 8px 14px;
-    border-radius: 9px;
+    padding: 9px 14px;
+    border-radius: 10px;
     border: none;
     font-size: .85rem;
     font-weight: 600;
@@ -101,102 +141,54 @@
     color: #fff;
     background: var(--surface2);
   }
+  .action-btn:hover { filter: brightness(1.12); }
   .action-btn.vlc { background: var(--vlc); }
   .action-btn.primary { background: var(--accent); }
-  .controls { padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ---------- Controls ---------- */
+  .controls { padding: 12px 16px 4px; display: flex; flex-direction: column; gap: 10px; }
   .chips { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
   .chips::-webkit-scrollbar { display: none; }
   .chip {
     flex: none;
-    padding: 7px 14px;
+    padding: 8px 14px;
     border-radius: 999px;
     background: var(--surface2);
     color: var(--text);
-    border: 1px solid transparent;
+    border: 1px solid var(--surface3);
     font-size: .85rem;
     cursor: pointer;
   }
-  .chip.active { background: var(--accent); color: #fff; font-weight: 600; }
+  .chip:hover { background: var(--surface3); }
+  .chip.active { background: var(--accent); color: #fff; font-weight: 600; border-color: transparent; }
   .row { display: flex; gap: 8px; }
   input[type="search"], input[type="text"], select {
     flex: 1;
-    padding: 10px 12px;
-    border-radius: 10px;
+    padding: 11px 13px;
+    border-radius: 11px;
     border: 1px solid var(--surface2);
     background: var(--surface);
     color: var(--text);
     font-size: .95rem;
     -webkit-appearance: none;
   }
+  input::placeholder { color: var(--muted); }
   input:focus, select:focus { outline: 2px solid var(--accent); border-color: transparent; }
   button.load {
-    padding: 10px 16px;
-    border-radius: 10px;
+    padding: 11px 16px;
+    border-radius: 11px;
     border: none;
     background: var(--accent);
     color: #fff;
     font-size: .9rem;
     font-weight: 600;
     cursor: pointer;
-  }
-  #global-btn { background: var(--surface2); flex: none; }
-  #global-btn.active { background: var(--accent); }
-  #count { padding: 0 14px; font-size: .8rem; color: var(--muted); }
-  #channels { list-style: none; padding: 8px 10px 30px; display: flex; flex-direction: column; gap: 6px; }
-  .channel {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    background: var(--surface);
-    border-radius: 12px;
-    cursor: pointer;
-    border: 1px solid transparent;
-  }
-  .channel:active { background: var(--surface2); }
-  .channel.playing { border-color: var(--accent); }
-  .channel img.logo {
-    width: 44px; height: 44px;
-    object-fit: contain;
-    border-radius: 8px;
-    background: #fff;
     flex: none;
   }
-  .channel .logo-fallback {
-    width: 44px; height: 44px;
-    border-radius: 8px;
-    background: var(--surface2);
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; color: var(--muted);
-    flex: none;
-  }
-  .channel .meta { flex: 1; min-width: 0; }
-  .channel .name { font-size: .95rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .channel .group { font-size: .75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .channel .badge {
-    flex: none;
-    font-size: .65rem;
-    padding: 3px 7px;
-    border-radius: 6px;
-    background: var(--surface2);
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .03em;
-  }
-  .channel .badge.http { color: var(--warn); }
-  .channel .mini-btn {
-    flex: none;
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 1.05rem;
-    padding: 6px 4px;
-    cursor: pointer;
-    text-decoration: none;
-  }
-  .channel .mini-btn.vlc { color: var(--vlc); font-size: .7rem; font-weight: 700; border: 1px solid var(--vlc); border-radius: 6px; padding: 4px 6px; }
-  .channel .mini-btn.hide { color: var(--err); font-weight: 700; }
-  #empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: .9rem; display: none; }
+  button.load:hover { filter: brightness(1.1); }
+  #global-btn { background: var(--surface2); border: 1px solid var(--surface3); }
+  #global-btn.active { background: var(--accent); border-color: transparent; }
+  #count { padding: 6px 16px 0; font-size: .8rem; color: var(--muted); }
   .spinner {
     width: 26px; height: 26px;
     border: 3px solid var(--surface2);
@@ -207,35 +199,160 @@
     display: none;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  /* Bottom-sheet panels (settings + custom sources) */
+  #empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: .9rem; display: none; }
+
+  /* ---------- Rails (Netflix rows) ---------- */
+  #channels.rails { padding: 10px 0 40px; display: flex; flex-direction: column; gap: 20px; }
+  .rail { display: flex; flex-direction: column; gap: 10px; }
+  .rail-title {
+    font-size: 1.02rem; font-weight: 700; color: #fff;
+    padding: 0 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .rail-title::before {
+    content: ""; width: 4px; height: 18px; border-radius: 3px;
+    background: linear-gradient(180deg, var(--brand), #b0060d);
+  }
+  .rail.recent .rail-title::before { background: linear-gradient(180deg, var(--accent), #2f6bd8); }
+  .rail-track {
+    display: flex; gap: 12px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    padding: 4px 16px 8px;
+    scroll-snap-type: x proximity;
+  }
+  .rail-track::-webkit-scrollbar { height: 8px; }
+  .rail-track::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 8px; }
+  .rail-track::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- Channel card (poster) ---------- */
+  .channel {
+    flex: none;
+    width: 156px;
+    scroll-snap-align: start;
+    display: flex; flex-direction: column;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--surface2);
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    position: relative;
+  }
+  .channel:hover { transform: translateY(-4px); border-color: var(--surface3); box-shadow: var(--shadow); }
+  .channel.playing { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent); }
+  .channel .poster {
+    position: relative;
+    width: 100%; height: 96px;
+    background: linear-gradient(135deg, var(--surface2), var(--surface3));
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .channel .poster img.logo {
+    max-width: 78%; max-height: 74%;
+    object-fit: contain;
+  }
+  .channel .poster .logo-fallback {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1.7rem; color: #fff;
+    background: transparent;
+  }
+  .channel .poster .badge, .channel .poster-badge {
+    position: absolute; top: 6px; right: 6px;
+    font-size: .6rem;
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: rgba(0,0,0,.62);
+    color: #dfe4ee;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    backdrop-filter: blur(2px);
+  }
+  .channel .poster-badge.http, .channel .badge.http { color: var(--warn); }
+  .channel .meta { padding: 9px 10px 8px; min-width: 0; }
+  .channel .name {
+    font-size: .86rem; font-weight: 600; color: #fff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .channel .group {
+    font-size: .72rem; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+  }
+
+  /* EPG bandeau inside card */
+  .card-epg { padding: 0 10px 8px; }
+  .epg-now {
+    font-size: .74rem; color: #cfe0ff; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .epg-next {
+    font-size: .68rem; color: var(--muted); margin-top: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .epg-bar {
+    height: 4px; border-radius: 3px; background: var(--surface3);
+    margin-top: 5px; overflow: hidden;
+  }
+  .epg-bar > span {
+    display: block; height: 100%;
+    background: linear-gradient(90deg, var(--brand), #ff5a63);
+    border-radius: 3px;
+  }
+
+  /* Card action buttons (VLC / copy / hide) */
+  .card-actions {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 8px 9px; margin-top: auto;
+    opacity: .55; transition: opacity .15s ease;
+  }
+  .channel:hover .card-actions { opacity: 1; }
+  .channel .mini-btn {
+    background: var(--surface2);
+    border: none;
+    color: var(--muted);
+    font-size: .82rem;
+    padding: 5px 7px;
+    border-radius: 7px;
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1;
+  }
+  .channel .mini-btn:hover { background: var(--surface3); color: var(--text); }
+  .channel .mini-btn.vlc { color: var(--vlc); font-size: .64rem; font-weight: 800; border: 1px solid var(--vlc); padding: 4px 6px; }
+  .channel .mini-btn.hide { color: var(--err); font-weight: 800; margin-left: auto; }
+
+  /* ---------- Bottom-sheet panels ---------- */
   .sheet-overlay {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,.6);
+    background: rgba(0,0,0,.66);
     z-index: 50;
     display: none;
     align-items: flex-end;
     justify-content: center;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
   }
   .sheet-overlay.visible { display: flex; }
   .sheet {
     background: var(--surface);
     width: 100%;
     max-width: 560px;
-    border-radius: 18px 18px 0 0;
-    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 20px 20px 0 0;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
     gap: 12px;
-    max-height: 85vh;
+    max-height: 86vh;
     overflow-y: auto;
+    border: 1px solid var(--surface2);
+    border-bottom: none;
+    box-shadow: 0 -10px 40px rgba(0,0,0,.5);
   }
-  .sheet h2 { font-size: 1rem; }
+  .sheet h2 { font-size: 1.05rem; }
   .sheet label { font-size: .8rem; color: var(--muted); }
   .sheet .hint { font-size: .75rem; color: var(--muted); line-height: 1.5; }
   .sheet .presets { display: flex; gap: 8px; flex-wrap: wrap; }
   .sheet .two-btn { display: flex; gap: 8px; }
   .sheet .two-btn .action-btn { flex: 1; text-align: center; }
-  /* Custom source chips + saved list */
   .chip.custom { background: color-mix(in srgb, var(--ok) 22%, var(--surface2)); }
   .chip.custom.active { background: var(--ok); color: #06231a; }
   .chip.add { background: transparent; border: 1px dashed var(--muted); color: var(--muted); }
@@ -249,9 +366,8 @@
   .src-item .s-url { font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .src-item .s-del { background: none; border: none; color: var(--err); font-size: 1.1rem; cursor: pointer; padding: 4px 6px; }
   .src-empty { font-size: .78rem; color: var(--muted); }
-  /* Diagnostics log */
   #diag-log {
-    background: #0a0d12;
+    background: #07090d;
     border: 1px solid var(--surface2);
     border-radius: 10px;
     padding: 10px;
@@ -264,23 +380,139 @@
     max-height: 45vh;
     overflow-y: auto;
   }
+
+  /* ---------- Guide overlay ---------- */
+  .guide-overlay { align-items: stretch; justify-content: center; }
+  .guide-sheet {
+    border-radius: 0;
+    max-width: 780px;
+    max-height: 100vh;
+    height: 100%;
+    border: none;
+    padding-top: calc(16px + env(safe-area-inset-top));
+  }
+  .guide-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #guide-list { display: flex; flex-direction: column; gap: 8px; }
+  .guide-row {
+    display: flex; gap: 12px; align-items: center;
+    background: var(--surface2); border: 1px solid var(--surface3);
+    border-radius: 12px; padding: 10px 12px; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .guide-row:hover { border-color: var(--accent); background: var(--surface3); }
+  .guide-logo {
+    flex: none; width: 52px; height: 52px; border-radius: 10px;
+    background: var(--surface); display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .guide-logo img { max-width: 84%; max-height: 84%; object-fit: contain; }
+  .guide-logo-fb { font-weight: 800; font-size: 1.3rem; color: #fff; }
+  .guide-body { flex: 1; min-width: 0; }
+  .guide-name { font-weight: 700; font-size: .95rem; color: #fff; }
+  .guide-now { font-size: .82rem; color: #cfe0ff; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .guide-now b, .guide-next b { color: var(--muted); font-weight: 600; }
+  .guide-next { font-size: .78rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .guide-body .epg-bar { margin: 6px 0 2px; max-width: 320px; }
+  .guide-empty { color: var(--muted); font-size: .9rem; text-align: center; padding: 30px 12px; }
+
+  @media (min-width: 720px) {
+    .channel { width: 178px; }
+    .channel .poster { height: 110px; }
+    video { max-height: 52vh; }
+  }
+
+  /* ============ Liquid Glass ============ */
+  :root {
+    --glass: rgba(255,255,255,0.09);
+    --glass-strong: rgba(26,26,34,0.55);
+    --glass-brd: rgba(255,255,255,0.18);
+    --glass-hi: inset 0 1px 0 rgba(255,255,255,0.28);
+    --glass-blur: saturate(180%) blur(22px);
+  }
+  /* Frosted chips (country + nav pills) */
+  .chips .chip {
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd);
+    box-shadow: var(--glass-hi), 0 2px 10px rgba(0,0,0,.22);
+  }
+  /* Frosted secondary buttons */
+  .action-btn:not(.primary),
+  button.load,
+  #settings-btn, #sources-btn {
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd);
+    box-shadow: var(--glass-hi), 0 2px 10px rgba(0,0,0,.22);
+  }
+  .action-btn.primary {
+    box-shadow: var(--glass-hi), 0 4px 16px rgba(79,140,255,.35);
+  }
+  /* Frosted top bar + bottom sheets */
+  .topbar {
+    background: rgba(11,11,15,.55);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .sheet {
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(30px);
+    backdrop-filter: saturate(180%) blur(30px);
+    border-top: 1px solid var(--glass-brd);
+    box-shadow: var(--glass-hi), 0 -10px 40px rgba(0,0,0,.5);
+  }
+  /* Floating Liquid Glass bottom nav (pill) */
+  body { padding-bottom: 92px; }
+  .glass-nav {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 60;
+    display: flex; gap: 4px; padding: 7px;
+    border-radius: 999px;
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(26px);
+    backdrop-filter: saturate(180%) blur(26px);
+    border: 1px solid var(--glass-brd);
+    box-shadow: var(--glass-hi), 0 12px 44px rgba(0,0,0,.55);
+    max-width: calc(100vw - 24px);
+  }
+  .glass-nav button {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    border: none; background: none; color: var(--muted);
+    font-size: .6rem; font-weight: 600; cursor: pointer;
+    padding: 7px 15px; border-radius: 999px; min-width: 60px;
+    transition: color .2s ease, background .2s ease, box-shadow .2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .glass-nav button .ic { font-size: 1.15rem; line-height: 1; }
+  .glass-nav button.active {
+    color: #fff;
+    background: rgba(255,255,255,0.15);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 2px 8px rgba(0,0,0,.25);
+  }
 </style>
 </head>
 <body>
+
+<div class="topbar">
+  <div class="brand"><span class="brand-mark">DP</span><span class="brand-name">DPIPTV</span></div>
+  <nav class="top-nav">
+    <button class="nav-link active" id="nav-home" type="button">Accueil</button>
+    <button class="nav-link" id="guide-btn" type="button">📅 Guide</button>
+  </nav>
+  <div class="top-actions">
+    <button id="sources-btn" title="Ajouter mes propres liens (protégé par mot de passe)">🔒 Mes liens</button>
+    <button id="settings-btn" title="Réglages du proxy">⚙️</button>
+  </div>
+</div>
 
 <div class="player-wrap">
   <video id="video" controls playsinline autoplay></video>
 </div>
 <div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span><span id="buf">⏳ mise en mémoire tampon…</span></div>
 <div id="status"></div>
-
-<header>
-  <h1>📺 <span>Dpiptv</span> — Lecteur de test</h1>
-  <div style="display:flex;gap:8px">
-    <button id="sources-btn" title="Ajouter mes propres liens (protégé par mot de passe)">🔒 Mes liens</button>
-    <button id="settings-btn" title="Réglages du proxy">⚙️</button>
-  </div>
-</header>
 
 <div class="controls">
   <div class="chips" id="chips"></div>
@@ -297,7 +529,7 @@
 <div id="count"></div>
 <div class="spinner" id="spinner"></div>
 <div id="empty">Aucune chaîne trouvée.</div>
-<ul id="channels"></ul>
+<div id="channels" class="rails"></div>
 
 <div id="sources-overlay" class="sheet-overlay">
   <div class="sheet">
@@ -731,6 +963,7 @@
       var li = document.createElement('li');
       li.className = 'channel';
       li.dataset.idx = idx;
+      li.dataset.id = ch.id || ''; li.dataset.group = ch.group || '';
 
       if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
         var img = document.createElement('img');
@@ -810,6 +1043,7 @@
       countEl.textContent = channels.length ? shown + ' / ' + channels.length + ' chaînes' : '';
       emptyEl.style.display = channels.length && !shown ? 'block' : 'none';
     }
+    if (typeof window.__afterRender === 'function') { try { window.__afterRender(globalMode); } catch (e) {} }
   }
 
   function copyText(text, silent) {
@@ -896,6 +1130,7 @@
     markPlaying(li);
     nowPlayingEl.classList.add('visible');
     nowPlayingName.textContent = ch.name;
+    try { if (typeof window.__recordRecent === 'function') window.__recordRecent(ch); } catch (e) {}
     setStatus('', '');
 
     var insecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
@@ -1566,8 +1801,458 @@
     });
   });
 
+  window.__dpiptv = {
+    play: function (ch) { exitGlobalMode(); setActiveChip(null); play(ch, null, false); },
+    openInVlc: openInVlc,
+    loadPlaylist: loadPlaylist,
+    getChannels: function () { return channels.slice(); },
+    isGlobal: function () { return globalMode; }
+  };
   dbg('Dpiptv prêt · proxy=' + proxyMode + ' · https=' + (location.protocol === 'https:'));
   loadPlaylist('fr');
+})();
+</script>
+<div id="guide-overlay" class="sheet-overlay guide-overlay">
+  <div class="sheet guide-sheet">
+    <div class="guide-head">
+      <h2>📅 Guide des programmes</h2>
+      <button class="action-btn" id="guide-close">✕ Fermer</button>
+    </div>
+    <p class="hint" id="guide-sub">En ce moment et à suivre sur les chaînes de la playlist courante (celles ayant un identifiant EPG).</p>
+    <button class="action-btn" id="guide-retry" style="display:none">↻ Réessayer de charger le guide</button>
+    <div id="guide-list"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   DPIPTV — couche présentation Netflix (rails + EPG + Guide).
+   100% additif : ne modifie ni ne remplace le moteur d'origine.
+   Communique avec le moteur via window.__dpiptv / window.__afterRender.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var channelsEl = document.getElementById('channels');
+
+  /* ---------------- utils ---------------- */
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+  function firstLetter(name) {
+    return (name || '?').charAt(0).toUpperCase();
+  }
+  function makeFallback(name, cls) {
+    var fb = document.createElement('div');
+    fb.className = cls || 'logo-fallback';
+    fb.textContent = firstLetter(name);
+    return fb;
+  }
+
+  /* ---------------- EPG / guide.json ---------------- */
+  var guideMap = {};
+  var guideReady = false;      // data loaded & usable
+  var guideAvailable = false;  // same as guideReady but semantic for UI
+  var guideTried = false;      // a fetch attempt has completed (ok or ko)
+
+  function fetchGuide() {
+    if (guideTried && guideAvailable) return Promise.resolve();
+    if (guideTried && !guideAvailable) { /* allow explicit retry to re-enter */ }
+    guideTried = false;
+    var ctrl = ('AbortController' in window) ? new AbortController() : null;
+    var to = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 3000) : null;
+    var opts = ctrl ? { signal: ctrl.signal, cache: 'no-store' } : { cache: 'no-store' };
+    return fetch('guide.json', opts).then(function (r) {
+      if (to) { clearTimeout(to); to = null; }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      guideTried = true;
+      if (data && data.channels && typeof data.channels === 'object') {
+        guideMap = data.channels;
+        guideReady = true;
+        guideAvailable = true;
+        refreshAllEpg();
+        if (guideOverlayOpen) renderGuide();
+      } else {
+        guideReady = false; guideAvailable = false;
+      }
+    }).catch(function () {
+      if (to) { clearTimeout(to); to = null; }
+      guideTried = true;
+      guideReady = false;
+      guideAvailable = false;
+      if (guideOverlayOpen) renderGuide();
+    });
+  }
+
+  // Returns {now, next, pct} or null. now may be null if only a future program.
+  function currentNext(programs) {
+    if (!programs || !programs.length) return null;
+    var t = Date.now();
+    var ps = programs.slice().sort(function (a, b) { return (a.start || 0) - (b.start || 0); });
+    var now = null, next = null;
+    for (var i = 0; i < ps.length; i++) {
+      var p = ps[i];
+      if (p.start <= t && t < p.stop) { now = p; next = ps[i + 1] || null; break; }
+      if (p.start > t) { next = p; break; }
+    }
+    if (!now) return next ? { now: null, next: next, pct: 0 } : null;
+    var span = now.stop - now.start;
+    var pct = span > 0 ? Math.max(0, Math.min(100, ((t - now.start) / span) * 100)) : 0;
+    return { now: now, next: next, pct: pct };
+  }
+
+  // Fill (or hide) the .card-epg bandeau of a carded <li>.
+  function attachEpg(li) {
+    var epg = li.querySelector('.card-epg');
+    if (!epg) return;
+    var id = li.getAttribute('data-id') || (li.dataset ? li.dataset.id : '');
+    if (!id || !guideAvailable || !guideMap[id] || !guideMap[id].programs) {
+      epg.style.display = 'none';
+      epg.innerHTML = '';
+      return;
+    }
+    var info = currentNext(guideMap[id].programs);
+    if (!info || !info.now) { epg.style.display = 'none'; epg.innerHTML = ''; return; }
+    epg.innerHTML = '';
+    var nowT = document.createElement('div');
+    nowT.className = 'epg-now';
+    nowT.textContent = info.now.title || '';
+    epg.appendChild(nowT);
+    var bar = document.createElement('div');
+    bar.className = 'epg-bar';
+    var fill = document.createElement('span');
+    fill.style.width = info.pct + '%';
+    bar.appendChild(fill);
+    epg.appendChild(bar);
+    if (info.next && info.next.title) {
+      var nx = document.createElement('div');
+      nx.className = 'epg-next';
+      nx.textContent = 'À suivre : ' + info.next.title;
+      epg.appendChild(nx);
+    }
+    epg.style.display = 'block';
+  }
+
+  function refreshAllEpg() {
+    var cards = channelsEl.querySelectorAll('.channel');
+    for (var i = 0; i < cards.length; i++) attachEpg(cards[i]);
+  }
+
+  /* ---------------- Recently viewed ---------------- */
+  var RECENT_KEY = 'dpiptv.recent';
+  var RECENT_MAX = 15;
+  function readRecent() {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') || []; }
+    catch (e) { return []; }
+  }
+  function writeRecent(list) {
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) {}
+  }
+  // Exposed to the engine: called from play() with the channel object.
+  window.__recordRecent = function (ch) {
+    if (!ch || !ch.url) return;
+    var list = readRecent().filter(function (c) { return c.url !== ch.url; });
+    list.unshift({ name: ch.name || 'Chaîne', url: ch.url, logo: ch.logo || '', group: ch.group || '', id: ch.id || '' });
+    writeRecent(list);
+  };
+
+  /* ---------------- Card building ---------------- */
+  // Transform an engine-rendered <li.channel> (row layout) into a poster card,
+  // MOVING (not recreating) the existing button nodes so their listeners survive.
+  function buildCard(li) {
+    if (li.__carded) return li;
+    var img = li.querySelector('img.logo, .logo-fallback');
+    var meta = li.querySelector('.meta');
+    var badge = li.querySelector('.badge');
+    var miniBtns = li.querySelectorAll('.mini-btn');
+
+    var poster = document.createElement('div');
+    poster.className = 'poster';
+    if (img) poster.appendChild(img);
+    if (badge) { badge.classList.add('poster-badge'); poster.appendChild(badge); }
+
+    var actions = document.createElement('div');
+    actions.className = 'card-actions';
+    Array.prototype.forEach.call(miniBtns, function (b) { actions.appendChild(b); });
+
+    var epg = document.createElement('div');
+    epg.className = 'card-epg';
+    epg.style.display = 'none';
+
+    // Clear remaining children then re-append in card order (refs stay live).
+    while (li.firstChild) li.removeChild(li.firstChild);
+    li.appendChild(poster);
+    if (meta) li.appendChild(meta);
+    li.appendChild(epg);
+    li.appendChild(actions);
+    li.__carded = true;
+    return li;
+  }
+
+  // A poster card for the "Recently viewed" rail, from a stored channel object.
+  function buildRecentCard(ch) {
+    var li = document.createElement('li');
+    li.className = 'channel';
+    li.setAttribute('data-id', ch.id || '');
+
+    var poster = document.createElement('div');
+    poster.className = 'poster';
+    if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
+      var im = document.createElement('img');
+      im.className = 'logo'; im.loading = 'lazy'; im.src = ch.logo; im.alt = '';
+      im.onerror = function () { this.replaceWith(makeFallback(ch.name, 'logo-fallback')); };
+      poster.appendChild(im);
+    } else {
+      var fb = document.createElement('div');
+      fb.className = 'logo-fallback';
+      fb.textContent = (ch.logo && !/^https?:\/\//i.test(ch.logo)) ? ch.logo : firstLetter(ch.name);
+      poster.appendChild(fb);
+    }
+    li.appendChild(poster);
+
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = ch.name || 'Chaîne';
+    meta.appendChild(nm);
+    if (ch.group) { var gr = document.createElement('div'); gr.className = 'group'; gr.textContent = ch.group; meta.appendChild(gr); }
+    li.appendChild(meta);
+
+    var epg = document.createElement('div'); epg.className = 'card-epg'; epg.style.display = 'none';
+    li.appendChild(epg);
+
+    var actions = document.createElement('div');
+    actions.className = 'card-actions';
+    var vlc = document.createElement('button');
+    vlc.className = 'mini-btn vlc'; vlc.textContent = 'VLC'; vlc.title = 'Ouvrir dans VLC';
+    vlc.addEventListener('click', function (e) { e.stopPropagation(); if (window.__dpiptv) window.__dpiptv.openInVlc(ch.url, ch.name); });
+    actions.appendChild(vlc);
+    li.appendChild(actions);
+
+    li.__carded = true;
+    li.addEventListener('click', function () { if (window.__dpiptv) window.__dpiptv.play(ch); });
+    attachEpg(li);
+    return li;
+  }
+
+  function buildRecentRail() {
+    var list = readRecent();
+    if (!list.length) return null;
+    var rail = document.createElement('section');
+    rail.className = 'rail recent';
+    var h = document.createElement('h3');
+    h.className = 'rail-title';
+    h.textContent = 'Reprendre — Récemment vues';
+    var track = document.createElement('div');
+    track.className = 'rail-track';
+    list.forEach(function (ch) { track.appendChild(buildRecentCard(ch)); });
+    rail.appendChild(h);
+    rail.appendChild(track);
+    return rail;
+  }
+
+  /* ---------------- Railify (main render hook) ---------------- */
+  // Called by the engine at the end of render(). Groups the freshly rendered
+  // flat <li.channel> list into horizontal rails by group-title.
+  function railify(globalMode) {
+    // Collect the flat cards the engine just appended (direct children only).
+    var flat = [];
+    var kids = channelsEl.children;
+    for (var i = 0; i < kids.length; i++) {
+      var c = kids[i];
+      if (c.tagName === 'LI' && c.className.indexOf('channel') >= 0) flat.push(c);
+    }
+    if (!flat.length) return; // nothing flat to transform (already railified/empty)
+
+    var order = [], groups = {};
+    flat.forEach(function (li) {
+      var g = (li.getAttribute('data-group') || '').trim();
+      if (!g) g = globalMode ? 'Résultats' : 'Autres';
+      if (!groups[g]) { groups[g] = []; order.push(g); }
+      groups[g].push(li);
+    });
+
+    var frag = document.createDocumentFragment();
+
+    var recentRail = buildRecentRail();
+    if (recentRail) frag.appendChild(recentRail);
+
+    order.forEach(function (g) {
+      var rail = document.createElement('section');
+      rail.className = 'rail';
+      var h = document.createElement('h3');
+      h.className = 'rail-title';
+      h.textContent = g;
+      var track = document.createElement('div');
+      track.className = 'rail-track';
+      groups[g].forEach(function (li) {
+        buildCard(li);
+        attachEpg(li);
+        track.appendChild(li);
+      });
+      rail.appendChild(h);
+      rail.appendChild(track);
+      frag.appendChild(rail);
+    });
+
+    while (channelsEl.firstChild) channelsEl.removeChild(channelsEl.firstChild);
+    channelsEl.appendChild(frag);
+  }
+
+  // The engine calls this at the end of render().
+  window.__afterRender = railify;
+
+  /* ---------------- Guide overlay ---------------- */
+  var guideOverlay = document.getElementById('guide-overlay');
+  var guideOverlayOpen = false;
+
+  function txtGuideLogo(name) {
+    var d = document.createElement('div');
+    d.className = 'guide-logo-fb';
+    d.textContent = firstLetter(name);
+    return d;
+  }
+
+  function renderGuide() {
+    var listEl = document.getElementById('guide-list');
+    var retry = document.getElementById('guide-retry');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    retry.style.display = guideAvailable ? 'none' : (guideTried ? 'block' : 'none');
+
+    if (!guideAvailable) {
+      var m = document.createElement('div');
+      m.className = 'guide-empty';
+      m.textContent = guideTried
+        ? 'Guide des programmes indisponible pour le moment.'
+        : 'Chargement du guide…';
+      listEl.appendChild(m);
+      return;
+    }
+
+    var chs = (window.__dpiptv && window.__dpiptv.getChannels) ? window.__dpiptv.getChannels() : [];
+    var shown = 0;
+    chs.forEach(function (c) {
+      if (!c.id) return;
+      var e = guideMap[c.id];
+      if (!e || !e.programs) return;
+      var info = currentNext(e.programs);
+      if (!info || !info.now) return;
+      shown++;
+
+      var row = document.createElement('div');
+      row.className = 'guide-row';
+
+      var lg = document.createElement('div');
+      lg.className = 'guide-logo';
+      if (c.logo && /^https?:\/\//i.test(c.logo)) {
+        var im = document.createElement('img');
+        im.src = c.logo; im.alt = '';
+        im.onerror = function () { this.replaceWith(txtGuideLogo(c.name)); };
+        lg.appendChild(im);
+      } else {
+        lg.appendChild(txtGuideLogo(c.name));
+      }
+
+      var body = document.createElement('div');
+      body.className = 'guide-body';
+      var nm = document.createElement('div'); nm.className = 'guide-name'; nm.textContent = c.name;
+      var nowD = document.createElement('div'); nowD.className = 'guide-now';
+      nowD.innerHTML = '<b>En ce moment :</b> ' + esc(info.now.title);
+      var bar = document.createElement('div'); bar.className = 'epg-bar';
+      var f = document.createElement('span'); f.style.width = info.pct + '%'; bar.appendChild(f);
+      body.appendChild(nm); body.appendChild(nowD); body.appendChild(bar);
+      if (info.next && info.next.title) {
+        var nx = document.createElement('div'); nx.className = 'guide-next';
+        nx.innerHTML = '<b>À suivre :</b> ' + esc(info.next.title);
+        body.appendChild(nx);
+      }
+      row.appendChild(lg);
+      row.appendChild(body);
+      row.addEventListener('click', function () { closeGuide(); if (window.__dpiptv) window.__dpiptv.play(c); });
+      listEl.appendChild(row);
+    });
+
+    if (!shown) {
+      var m2 = document.createElement('div');
+      m2.className = 'guide-empty';
+      m2.textContent = "Aucune chaîne de cette playlist n'a de guide disponible pour l'instant.";
+      listEl.appendChild(m2);
+    }
+  }
+
+  function openGuide() {
+    guideOverlayOpen = true;
+    guideOverlay.classList.add('visible');
+    if (!guideAvailable) fetchGuide();
+    renderGuide();
+  }
+  function closeGuide() {
+    guideOverlayOpen = false;
+    guideOverlay.classList.remove('visible');
+  }
+
+  var guideBtn = document.getElementById('guide-btn');
+  if (guideBtn) guideBtn.addEventListener('click', openGuide);
+  document.getElementById('guide-close').addEventListener('click', closeGuide);
+  document.getElementById('guide-retry').addEventListener('click', function () { fetchGuide().then(renderGuide); });
+  guideOverlay.addEventListener('click', function (e) { if (e.target === guideOverlay) closeGuide(); });
+
+  var navHome = document.getElementById('nav-home');
+  if (navHome) navHome.addEventListener('click', function () {
+    closeGuide();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  /* ---------------- Init & periodic EPG refresh ---------------- */
+  fetchGuide();
+  // Keep progress bars / now-playing labels fresh over time.
+  setInterval(function () {
+    if (guideAvailable) {
+      refreshAllEpg();
+      if (guideOverlayOpen) renderGuide();
+    }
+  }, 60000);
+})();
+</script>
+
+<nav class="glass-nav" id="glass-nav">
+  <button data-act="home" class="active" type="button"><span class="ic">🏠</span>Accueil</button>
+  <button data-act="guide" type="button"><span class="ic">📅</span>Guide</button>
+  <button data-act="search" type="button"><span class="ic">🔍</span>Rechercher</button>
+  <button data-act="links" type="button"><span class="ic">🔒</span>Mes liens</button>
+</nav>
+
+<script>
+/* Barre flottante Liquid Glass — pilote les boutons existants (100% additif). */
+(function () {
+  var nav = document.getElementById('glass-nav');
+  if (!nav) return;
+  function setActive(btn) {
+    var bs = nav.querySelectorAll('button');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('active', bs[i] === btn);
+  }
+  function clickId(id) { var el = document.getElementById(id); if (el) el.click(); }
+  nav.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('button') : null;
+    if (!btn) return;
+    var act = btn.getAttribute('data-act');
+    if (act === 'home') {
+      clickId('nav-home');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (act === 'guide') {
+      clickId('guide-btn');
+    } else if (act === 'search') {
+      var s = document.getElementById('search');
+      if (s) { s.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { s.focus(); }, 300); }
+    } else if (act === 'links') {
+      clickId('sources-btn');
+    }
+    setActive(btn);
+  });
 })();
 </script>
 </body>
