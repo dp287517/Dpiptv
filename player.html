@@ -486,12 +486,20 @@
     transition: color .2s ease, background .2s ease, box-shadow .2s ease;
     -webkit-tap-highlight-color: transparent;
   }
-  .glass-nav button .ic { font-size: 1.15rem; line-height: 1; }
+  .glass-nav button .ic { line-height: 0; }
+  .glass-nav button .ic svg { width: 23px; height: 23px; display: block; }
+  /* Inline button icons (top bar / toolbar) */
+  svg.bic { width: 17px; height: 17px; vertical-align: -3px; margin-right: 6px; }
+  #settings-btn svg.bic, #global-btn svg.bic { margin-right: 0; }
+  #settings-btn, #global-btn { display: inline-flex; align-items: center; justify-content: center; }
   .glass-nav button.active {
     color: #fff;
     background: rgba(255,255,255,0.15);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 2px 8px rgba(0,0,0,.25);
   }
+  .glass-nav button:focus { outline: none; }
+  .glass-nav button:focus-visible { outline: 2px solid rgba(255,255,255,.45); outline-offset: 2px; }
+  .topbar button:focus, .load:focus { outline: none; }
 </style>
 </head>
 <body>
@@ -500,11 +508,11 @@
   <div class="brand"><span class="brand-mark">DP</span><span class="brand-name">DPIPTV</span></div>
   <nav class="top-nav">
     <button class="nav-link active" id="nav-home" type="button">Accueil</button>
-    <button class="nav-link" id="guide-btn" type="button">📅 Guide</button>
+    <button class="nav-link" id="guide-btn" type="button"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>Guide</button>
   </nav>
   <div class="top-actions">
-    <button id="sources-btn" title="Ajouter mes propres liens (protégé par mot de passe)">🔒 Mes liens</button>
-    <button id="settings-btn" title="Réglages du proxy">⚙️</button>
+    <button id="sources-btn" title="Ajouter mes propres liens (protégé par mot de passe)"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>Mes liens</button>
+    <button id="settings-btn" title="Réglages du proxy"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.9 7.9 0 0 0 0-3l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-2.6-1.5L12.3 2h-3.6l-.4 2.1a7.6 7.6 0 0 0-2.6 1.5l-2-.8-1.8 3.1L3.6 10.5a7.9 7.9 0 0 0 0 3l-1.7 1.3 1.8 3.1 2-.8a7.6 7.6 0 0 0 2.6 1.5l.4 2.1h3.6l.4-2.1a7.6 7.6 0 0 0 2.6-1.5l2 .8 1.8-3.1z"/></svg></button>
   </div>
 </div>
 
@@ -522,7 +530,7 @@
   </div>
   <div class="row">
     <input type="search" id="search" placeholder="🔍 Rechercher une chaîne…">
-    <button class="load" id="global-btn" title="Rechercher dans toutes les playlists (tous pays)">🌍</button>
+    <button class="load" id="global-btn" title="Rechercher dans toutes les playlists (tous pays)"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button>
   </div>
 </div>
 
@@ -2220,10 +2228,14 @@
 </script>
 
 <nav class="glass-nav" id="glass-nav">
-  <button data-act="home" class="active" type="button"><span class="ic">🏠</span>Accueil</button>
-  <button data-act="guide" type="button"><span class="ic">📅</span>Guide</button>
-  <button data-act="search" type="button"><span class="ic">🔍</span>Rechercher</button>
-  <button data-act="links" type="button"><span class="ic">🔒</span>Mes liens</button>
+  <button data-act="home" class="active" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg></span>Accueil</button>
+  <button data-act="guide" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3M7 13h4M7 16.5h7"/></svg></span>Guide</button>
+  <button data-act="search" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span>Rechercher</button>
+  <button data-act="links" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></span>Mes liens</button>
 </nav>
 
 <script>
