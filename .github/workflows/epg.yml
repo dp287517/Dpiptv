@@ -20,9 +20,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: claude/dpiptv-test-setup-fqxhvb # porte le convertisseur scripts/epg-to-guide.mjs
+      - uses: actions/checkout@v6 # le convertisseur scripts/epg-to-guide.mjs est sur la branche courante
       - uses: actions/setup-node@v6
         with:
           node-version: 22
