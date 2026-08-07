@@ -361,9 +361,9 @@
       <button class="action-btn" id="preset-allorigins">allorigins.win (public)</button>
     </div>
     <p class="hint">
-      Les proxys publics dépannent mais sont lents et limités. Pour un résultat fiable,
-      déploie ton propre proxy (gratuit, 5 min) avec le fichier <b>proxy-worker.js</b> du repo
-      — instructions dans TESTING.md — puis colle son URL ici.
+      Un proxy <b>Cloudflare Worker personnel</b> est déjà configuré par défaut (rapide, non partagé).
+      Pour en utiliser un autre, colle son URL ici (le fichier <b>proxy-worker.js</b> du repo permet
+      d’en déployer un en 5 min — voir TESTING.md).
       Note : les chaînes <b>géo-bloquées</b> ou mortes resteront illisibles quel que soit le proxy ;
       le bouton VLC reste la valeur sûre.
     </p>
@@ -395,7 +395,7 @@
   var REPO = 'dp287517/Dpiptv';
   var BRANCH = 'master';
   var QUICK = ['fr', 'ch', 'be', 'uk', 'us', 'de', 'it', 'es', 'pt'];
-  var DEFAULT_PROXY = 'https://corsproxy.io/?url={url}';
+  var DEFAULT_PROXY = 'https://poly-proxy.palhadaniel-elec.workers.dev/?url={url}';
 
   var video = document.getElementById('video');
   var statusEl = document.getElementById('status');
