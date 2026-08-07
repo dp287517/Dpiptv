@@ -324,7 +324,7 @@
   .sheet-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,.66);
-    z-index: 50;
+    z-index: 100;
     display: none;
     align-items: flex-end;
     justify-content: center;
@@ -332,6 +332,27 @@
     -webkit-backdrop-filter: blur(3px);
   }
   .sheet-overlay.visible { display: flex; }
+  /* Masque la barre flottante quand une feuille/overlay est ouvert (anti-superposition) */
+  body:has(.sheet-overlay.visible) .glass-nav,
+  body:has(.profile-overlay.visible) .glass-nav { display: none; }
+  /* Barre du bas : 2 états (boutons / recherche) */
+  .nav-buttons { display: flex; gap: 4px; }
+  .nav-search { display: none; align-items: center; gap: 6px; width: 78vw; max-width: 520px; }
+  .glass-nav.searching .nav-buttons { display: none; }
+  .glass-nav.searching .nav-search { display: flex; }
+  .nav-search input {
+    flex: 1; min-width: 0; border: none; background: transparent; color: var(--text);
+    font-size: 16px; padding: 8px 4px; outline: none; -webkit-appearance: none;
+  }
+  .nav-search input::placeholder { color: var(--muted); }
+  .nav-search #global-btn { background: none; border: none; color: var(--muted); padding: 7px; }
+  .nav-search #global-btn.active { color: var(--accent); }
+  .ns-btn {
+    flex: none; background: none; border: none; color: var(--muted);
+    padding: 7px; border-radius: 999px; cursor: pointer; line-height: 0;
+  }
+  .ns-btn svg { width: 20px; height: 20px; display: block; }
+  #global-btn.active { color: var(--accent); }
   .sheet {
     background: var(--surface);
     width: 100%;
@@ -618,11 +639,10 @@
 <div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span><span id="buf">⏳ mise en mémoire tampon…</span></div>
 <div id="status"></div>
 
-<div class="controls">
-  <div class="row">
-    <input type="search" id="search" placeholder="🔍 Rechercher une chaîne…">
-    <button class="load" id="global-btn" title="Rechercher dans toutes les playlists (tous pays)"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button>
-  </div>
+<!-- Recherche : élément gardé tôt (pour le moteur), déplacé dans la barre du bas par JS -->
+<div id="search-holder" style="display:none">
+  <input type="search" id="search" placeholder="Rechercher une chaîne…" autocomplete="off">
+  <button class="ns-btn" id="global-btn" type="button" title="Chercher dans toutes les playlists (tous pays)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button>
 </div>
 
 <div id="count"></div>
@@ -2354,18 +2374,24 @@
 </script>
 
 <nav class="glass-nav" id="glass-nav">
-  <button data-act="home" class="active" type="button">
-    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg></span>Accueil</button>
-  <button data-act="country" type="button">
-    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>Pays</button>
-  <button data-act="guide" type="button">
-    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3M7 13h4M7 16.5h7"/></svg></span>Guide</button>
-  <button data-act="search" type="button">
-    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span>Rechercher</button>
-  <button data-act="links" class="admin-only" type="button">
-    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></span>Mes liens</button>
-  <button data-act="settings" class="admin-only" type="button">
-    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.9 7.9 0 0 0 0-3l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-2.6-1.5L12.3 2h-3.6l-.4 2.1a7.6 7.6 0 0 0-2.6 1.5l-2-.8-1.8 3.1L3.6 10.5a7.9 7.9 0 0 0 0 3l-1.7 1.3 1.8 3.1 2-.8a7.6 7.6 0 0 0 2.6 1.5l.4 2.1h3.6l.4-2.1a7.6 7.6 0 0 0 2.6-1.5l2 .8 1.8-3.1z"/></svg></span>Paramètres</button>
+  <div class="nav-buttons" id="nav-buttons">
+    <button data-act="home" class="active" type="button">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg></span>Accueil</button>
+    <button data-act="country" type="button">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>Pays</button>
+    <button data-act="guide" type="button">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3M7 13h4M7 16.5h7"/></svg></span>Guide</button>
+    <button data-act="search" type="button">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span>Rechercher</button>
+    <button data-act="links" class="admin-only" type="button">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></span>Mes liens</button>
+    <button data-act="settings" class="admin-only" type="button">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.9 7.9 0 0 0 0-3l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-2.6-1.5L12.3 2h-3.6l-.4 2.1a7.6 7.6 0 0 0-2.6 1.5l-2-.8-1.8 3.1L3.6 10.5a7.9 7.9 0 0 0 0 3l-1.7 1.3 1.8 3.1 2-.8a7.6 7.6 0 0 0 2.6 1.5l.4 2.1h3.6l.4-2.1a7.6 7.6 0 0 0 2.6-1.5l2 .8 1.8-3.1z"/></svg></span>Paramètres</button>
+  </div>
+  <div class="nav-search" id="nav-search">
+    <button class="ns-btn" id="ns-back" type="button" title="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <!-- #search et #global-btn sont déplacés ici par JS depuis #search-holder -->
+  </div>
 </nav>
 
 <div id="profile-overlay" class="profile-overlay">
@@ -2382,6 +2408,26 @@
   var nav = document.getElementById('glass-nav');
   if (!nav) return;
   var countryOverlay = document.getElementById('country-overlay');
+
+  // Déplace la recherche (gardée tôt pour le moteur) dans la barre du bas.
+  var nsWrap = document.getElementById('nav-search');
+  var searchInput = document.getElementById('search');
+  var globalBtn = document.getElementById('global-btn');
+  if (nsWrap && searchInput) nsWrap.appendChild(searchInput);
+  if (nsWrap && globalBtn) { globalBtn.classList.add('ns-btn'); nsWrap.appendChild(globalBtn); }
+
+  // Épingle la barre au-dessus du clavier et stable au scroll (VisualViewport).
+  var vv = window.visualViewport;
+  function pinNav() {
+    if (!vv) return;
+    var gap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    nav.style.transform = 'translateX(-50%) translateY(' + (-gap) + 'px)';
+  }
+  if (vv) {
+    vv.addEventListener('resize', pinNav);
+    vv.addEventListener('scroll', pinNav);
+    pinNav();
+  }
   function setActive(btn) {
     var bs = nav.querySelectorAll('button');
     for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('active', bs[i] === btn);
@@ -2400,14 +2446,29 @@
     } else if (act === 'guide') {
       clickId('guide-btn');
     } else if (act === 'search') {
+      nav.classList.add('searching');
+      // La recherche est TOUJOURS globale (toutes chaînes, tous pays) pour éviter la confusion.
+      try {
+        if (window.__dpiptv && !window.__dpiptv.isGlobal()) {
+          var g = document.getElementById('global-btn'); if (g) g.click();
+        }
+      } catch (e) {}
       var s = document.getElementById('search');
-      if (s) { s.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { s.focus(); }, 300); }
+      if (s) setTimeout(function () { s.focus(); }, 60);
       setActive(btn);
     } else if (act === 'links') {
       clickId('sources-btn');
     } else if (act === 'settings') {
       clickId('settings-btn');
     }
+  });
+
+  // Bouton retour du mode recherche → revient aux boutons.
+  var nsBack = document.getElementById('ns-back');
+  if (nsBack) nsBack.addEventListener('click', function () {
+    nav.classList.remove('searching');
+    var s = document.getElementById('search'); if (s) s.blur();
+    var home = nav.querySelector('button[data-act="home"]'); if (home) setActive(home);
   });
 
   // Feuille « Pays » : fermeture au tap dehors + à la sélection d'une chip.
