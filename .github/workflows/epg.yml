@@ -30,7 +30,7 @@ jobs:
           git clone --depth 1 https://github.com/iptv-org/epg.git epg
           cd epg
           npm install --no-audit --no-fund
-          npm run grab --- --sites="$SITES" --days=2 --maxConnections=5 --timeout=20000 --output=../guide.xml
+          npm run grab --- --sites="$SITES" --days=4 --maxConnections=5 --timeout=20000 --output=../guide.xml
       - name: Convert XMLTV -> guide.json
         run: node scripts/epg-to-guide.mjs guide.xml guide.json
       - name: Publish guide.json to gh-pages
