@@ -72,6 +72,10 @@
     flex: none;
     animation: pulse 1.5s infinite;
   }
+  #now-playing.buffering .dot { background: var(--warn); }
+  #buf { display: none; color: var(--warn); font-size: .8rem; }
+  #now-playing.buffering #buf { display: inline; }
+  #now-playing.buffering #now-playing-name { opacity: .6; }
   @keyframes pulse { 50% { opacity: .3; } }
   #status {
     margin: 8px 14px 0;
@@ -267,7 +271,7 @@
 <div class="player-wrap">
   <video id="video" controls playsinline autoplay></video>
 </div>
-<div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span></div>
+<div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span><span id="buf">⏳ mise en mémoire tampon…</span></div>
 <div id="status"></div>
 
 <header>
@@ -529,7 +533,12 @@
       return;
     }
     // Desktop: download a tiny .m3u playlist that VLC opens on double-click.
-    var m3u = '#EXTM3U\n#EXTINF:-1,' + (name || 'Flux') + '\n' + url + '\n';
+    // Embed VLC options so it buffers generously (5s) and reconnects on drops —
+    // the main cure for laggy IPTV streams, applied automatically.
+    var m3u = '#EXTM3U\n#EXTINF:-1,' + (name || 'Flux') + '\n' +
+      '#EXTVLCOPT:network-caching=5000\n' +
+      '#EXTVLCOPT:http-reconnect=true\n' +
+      url + '\n';
     var blob = new Blob([m3u], { type: 'audio/x-mpegurl' });
     var href = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -828,6 +837,7 @@
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     if (mpegts) { try { mpegts.destroy(); } catch (e) {} mpegts = null; }
     if (dash) { try { dash.reset(); } catch (e) {} dash = null; }
+    nowPlayingEl.classList.remove('buffering');
     video.removeAttribute('src');
     video.load();
   }
@@ -959,7 +969,16 @@
         try {
           mpegts = window.mpegts.createPlayer(
             { type: type, isLive: isLive, url: srcUrl },
-            { enableWorker: true, liveBufferLatencyChasing: isLive, lazyLoad: false }
+            {
+              enableWorker: true,
+              // Smoother over lag: keep a stash buffer and don't chase the live
+              // edge (chasing causes stutters on slow/proxied streams).
+              liveBufferLatencyChasing: false,
+              enableStashBuffer: true,
+              stashInitialSize: 384 * 1024,
+              autoCleanupSourceBuffer: true,
+              lazyLoad: false
+            }
           );
           mpegts.on(window.mpegts.Events.ERROR, function (a, b, c) {
             onFail('MPEG-TS ' + [a, b, (c && c.msg) ? c.msg : ''].filter(Boolean).join(' / '));
@@ -989,7 +1008,19 @@
     // --- HLS (.m3u8 or unknown, the IPTV default) ---
     if (window.Hls && Hls.isSupported()) {
       dbg('   moteur = hls.js' + (useProxy ? ' (loader proxy)' : ''));
-      var cfg = { maxBufferLength: 20 };
+      // Buffer generously to ride out network hiccups / a slow proxy, and
+      // avoid aggressive live-edge chasing that causes micro-freezes.
+      var cfg = {
+        maxBufferLength: 30,
+        maxMaxBufferLength: 120,
+        backBufferLength: 30,
+        maxBufferHole: 0.5,
+        liveSyncDurationCount: 4,
+        fragLoadingMaxRetry: 8,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 4,
+        fragLoadingRetryDelay: 800
+      };
       if (useProxy) {
         var L = getProxyLoader();
         if (L) { cfg.loader = L; cfg.pLoader = L; cfg.fLoader = L; }
@@ -1464,6 +1495,25 @@
   document.getElementById('diag-clear').addEventListener('click', function () {
     diagLog.length = 0;
     document.getElementById('diag-log').textContent = 'Journal vidé.';
+  });
+
+  // Buffering indicator + diagnostics on the shared <video> element.
+  var stallAt = 0;
+  ['waiting', 'stalled'].forEach(function (ev) {
+    video.addEventListener(ev, function () {
+      if (!nowPlayingEl.classList.contains('visible')) return;
+      nowPlayingEl.classList.add('buffering');
+      stallAt = Date.now();
+      dbg('   ⏳ tampon (' + ev + ')');
+    });
+  });
+  ['playing', 'canplay'].forEach(function (ev) {
+    video.addEventListener(ev, function () {
+      if (nowPlayingEl.classList.contains('buffering')) {
+        nowPlayingEl.classList.remove('buffering');
+        if (stallAt) { dbg('   ▶ reprise après ' + ((Date.now() - stallAt) / 1000).toFixed(1) + 's'); stallAt = 0; }
+      }
+    });
   });
 
   dbg('Dpiptv prêt · proxy=' + proxyMode + ' · https=' + (location.protocol === 'https:'));
