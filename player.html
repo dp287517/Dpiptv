@@ -476,18 +476,20 @@
     backdrop-filter: saturate(180%) blur(26px);
     border: 1px solid var(--glass-brd);
     box-shadow: var(--glass-hi), 0 12px 44px rgba(0,0,0,.55);
-    max-width: calc(100vw - 24px);
+    max-width: calc(100vw - 20px);
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
   }
+  .glass-nav::-webkit-scrollbar { display: none; }
   .glass-nav button {
     display: flex; flex-direction: column; align-items: center; gap: 3px;
     border: none; background: none; color: var(--muted);
-    font-size: .6rem; font-weight: 600; cursor: pointer;
-    padding: 7px 15px; border-radius: 999px; min-width: 60px;
+    font-size: .58rem; font-weight: 600; cursor: pointer;
+    padding: 7px 11px; border-radius: 999px; min-width: 54px; flex: none;
     transition: color .2s ease, background .2s ease, box-shadow .2s ease;
-    -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent; white-space: nowrap;
   }
   .glass-nav button .ic { line-height: 0; }
-  .glass-nav button .ic svg { width: 23px; height: 23px; display: block; }
+  .glass-nav button .ic svg { width: 22px; height: 22px; display: block; }
   /* Inline button icons (top bar / toolbar) */
   svg.bic { width: 17px; height: 17px; vertical-align: -3px; margin-right: 6px; }
   #settings-btn svg.bic, #global-btn svg.bic { margin-right: 0; }
@@ -500,34 +502,123 @@
   .glass-nav button:focus { outline: none; }
   .glass-nav button:focus-visible { outline: 2px solid rgba(255,255,255,.45); outline-offset: 2px; }
   .topbar button:focus, .load:focus { outline: none; }
+
+  /* ============ Profils + admin ============ */
+  body.guest .admin-only, body.guest .chip.add { display: none !important; }
+  .avatar-mini {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 9px; color: #fff;
+    font-weight: 800; font-size: .85rem; background: #4f8cff;
+  }
+  #profile-btn { background: none; border: none; padding: 3px; cursor: pointer; display: inline-flex; }
+  .profile-overlay {
+    position: fixed; inset: 0; z-index: 200; display: none;
+    align-items: center; justify-content: center;
+    background: radial-gradient(1000px 500px at 50% -80px, rgba(229,9,20,.18), transparent 70%), rgba(8,8,11,.98);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .profile-overlay.visible { display: flex; }
+  .profile-inner { text-align: center; padding: 24px; width: 100%; max-width: 640px; }
+  .profile-h { font-size: 1.9rem; font-weight: 700; margin-bottom: 28px; color: #fff; }
+  .profile-grid { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; }
+  .profile-tile {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    display: flex; flex-direction: column; align-items: center; gap: 10px; width: 116px;
+  }
+  .profile-tile .av {
+    width: 104px; height: 104px; border-radius: 14px; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 2.4rem; border: 3px solid transparent;
+    transition: border-color .15s, transform .15s;
+    box-shadow: var(--glass-hi), 0 8px 24px rgba(0,0,0,.4);
+  }
+  .profile-tile:hover .av { border-color: #fff; transform: translateY(-2px); }
+  .profile-tile .nm { font-size: .95rem; font-weight: 600; }
+  .profile-tile.add .av {
+    background: var(--glass); border: 1px dashed var(--glass-brd);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    font-weight: 300; font-size: 3rem;
+  }
+  .profile-tile .del {
+    font-size: .7rem; color: var(--err); background: none; border: none; cursor: pointer;
+    display: none;
+  }
+  .profile-overlay.managing .profile-tile .del { display: inline; }
+  .profile-manage {
+    margin-top: 30px; background: var(--glass); color: var(--text);
+    border: 1px solid var(--glass-brd); border-radius: 999px; padding: 9px 22px;
+    font-size: .85rem; cursor: pointer; font-weight: 600;
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  }
+  /* Favorite star on cards */
+  .card-fav {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    padding: 6px 4px; line-height: 0; margin-left: auto;
+  }
+  .card-fav svg { width: 19px; height: 19px; fill: none; }
+  .card-fav.on { color: #f5c518; }
+  .card-fav.on svg { fill: currentColor; }
+
+  /* ============ Finition pro : lecteur, sheets, admin ============ */
+  /* Lecteur fermé par défaut — s'ouvre au démarrage d'une lecture */
+  #player-wrap { display: none; }
+  body.playing #player-wrap { display: block; }
+  #player-close {
+    position: absolute; top: 10px; right: 10px; z-index: 5;
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd);
+    box-shadow: var(--glass-hi), 0 3px 12px rgba(0,0,0,.5);
+    color: #fff; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #player-close svg { width: 18px; height: 18px; }
+  #player-close:hover { background: rgba(60,60,72,.7); }
+
+  /* Croix de suppression + puce « Mes liens » réservées admin */
+  body.guest .mini-btn.hide { display: none !important; }
+
+  /* Feuille « Pays / source » : chips en grille souple */
+  #country-overlay .chips {
+    flex-wrap: wrap; overflow: visible; gap: 10px; padding-bottom: 0;
+  }
+  #country-overlay .chip { flex: none; }
+
+  /* Rail Favoris : accent doré */
+  .rail.fav .rail-title::before { background: linear-gradient(180deg, #f5c518, #c99700); }
 </style>
 </head>
-<body>
+<body class="guest">
 
 <div class="topbar">
-  <div class="brand"><span class="brand-mark">DP</span><span class="brand-name">DPIPTV</span></div>
+  <div class="brand" title="Cliquer pour le mode admin"><span class="brand-mark">DP</span><span class="brand-name">DPIPTV</span></div>
   <nav class="top-nav">
     <button class="nav-link active" id="nav-home" type="button">Accueil</button>
     <button class="nav-link" id="guide-btn" type="button"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>Guide</button>
   </nav>
   <div class="top-actions">
-    <button id="sources-btn" title="Ajouter mes propres liens (protégé par mot de passe)"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>Mes liens</button>
-    <button id="settings-btn" title="Réglages du proxy"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.9 7.9 0 0 0 0-3l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-2.6-1.5L12.3 2h-3.6l-.4 2.1a7.6 7.6 0 0 0-2.6 1.5l-2-.8-1.8 3.1L3.6 10.5a7.9 7.9 0 0 0 0 3l-1.7 1.3 1.8 3.1 2-.8a7.6 7.6 0 0 0 2.6 1.5l.4 2.1h3.6l.4-2.1a7.6 7.6 0 0 0 2.6-1.5l2 .8 1.8-3.1z"/></svg></button>
+    <button id="profile-btn" title="Changer de profil"><span class="avatar-mini" id="avatar-mini">?</span></button>
   </div>
 </div>
 
-<div class="player-wrap">
+<!-- Boutons/entrées pilotés par la barre du bas — masqués mais gardés pour le moteur -->
+<div id="admin-hidden" style="display:none" aria-hidden="true">
+  <button id="sources-btn" class="admin-only" title="Ajouter mes propres liens (protégé par mot de passe)"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></button>
+  <button id="settings-btn" class="admin-only" title="Réglages du proxy"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.9 7.9 0 0 0 0-3l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-2.6-1.5L12.3 2h-3.6l-.4 2.1a7.6 7.6 0 0 0-2.6 1.5l-2-.8-1.8 3.1L3.6 10.5a7.9 7.9 0 0 0 0 3l-1.7 1.3 1.8 3.1 2-.8a7.6 7.6 0 0 0 2.6 1.5l.4 2.1h3.6l.4-2.1a7.6 7.6 0 0 0 2.6-1.5l2 .8 1.8-3.1z"/></svg></button>
+  <input type="text" id="playlist-input" value="fr">
+  <button id="load-btn">Charger</button>
+</div>
+
+<div class="player-wrap" id="player-wrap">
+  <button id="player-close" title="Fermer le lecteur" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <video id="video" controls playsinline autoplay></video>
 </div>
 <div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span><span id="buf">⏳ mise en mémoire tampon…</span></div>
 <div id="status"></div>
 
 <div class="controls">
-  <div class="chips" id="chips"></div>
-  <div class="row">
-    <input type="text" id="playlist-input" placeholder="Code (fr, us…) ou un lien http(s) direct" value="fr">
-    <button class="load" id="load-btn">Charger</button>
-  </div>
   <div class="row">
     <input type="search" id="search" placeholder="🔍 Rechercher une chaîne…">
     <button class="load" id="global-btn" title="Rechercher dans toutes les playlists (tous pays)"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button>
@@ -538,6 +629,14 @@
 <div class="spinner" id="spinner"></div>
 <div id="empty">Aucune chaîne trouvée.</div>
 <div id="channels" class="rails"></div>
+
+<div id="country-overlay" class="sheet-overlay">
+  <div class="sheet">
+    <h2>🌍 Choisir un pays / une source</h2>
+    <p class="hint">Sélectionne une playlist pays, une de tes sources, ou « Mes liens ».</p>
+    <div class="chips" id="chips"></div>
+  </div>
+</div>
 
 <div id="sources-overlay" class="sheet-overlay">
   <div class="sheet">
@@ -610,6 +709,7 @@
     <button class="action-btn primary" id="settings-save">Enregistrer</button>
     <button class="action-btn" id="unhide-all" style="width:100%">👁 Réafficher les chaînes masquées</button>
     <button class="action-btn" id="diag-open" style="width:100%">🐞 Diagnostic (logs de lecture)</button>
+    <button class="action-btn" id="admin-logout" style="width:100%">🚪 Quitter le mode admin</button>
   </div>
 </div>
 
@@ -972,6 +1072,7 @@
       li.className = 'channel';
       li.dataset.idx = idx;
       li.dataset.id = ch.id || ''; li.dataset.group = ch.group || '';
+      li.dataset.url = ch.url || ''; li.dataset.name = ch.name || ''; li.dataset.logo = ch.logo || '';
 
       if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
         var img = document.createElement('img');
@@ -1814,7 +1915,8 @@
     openInVlc: openInVlc,
     loadPlaylist: loadPlaylist,
     getChannels: function () { return channels.slice(); },
-    isGlobal: function () { return globalMode; }
+    isGlobal: function () { return globalMode; },
+    stop: function () { stopPlayback(); markPlaying(null); nowPlayingEl.classList.remove('visible'); }
   };
   dbg('Dpiptv prêt · proxy=' + proxyMode + ' · https=' + (location.protocol === 'https:'));
   loadPlaylist('fr');
@@ -1861,9 +1963,31 @@
 
   /* ---------------- EPG / guide.json ---------------- */
   var guideMap = {};
+  var guideNorm = {};          // index par id sans suffixe @… (matching tolérant)
   var guideReady = false;      // data loaded & usable
   var guideAvailable = false;  // same as guideReady but semantic for UI
   var guideTried = false;      // a fetch attempt has completed (ok or ko)
+
+  // guide.json peut utiliser des ids suffixés (« SportTV1.pt@SD ») alors que les
+  // playlists ont souvent « SportTV1.pt ». On indexe la base (avant le @) et on
+  // cherche d'abord l'id exact, puis la base des deux côtés.
+  function baseId(id) { return String(id == null ? '' : id).split('@')[0]; }
+  function buildGuideNorm() {
+    guideNorm = {};
+    for (var k in guideMap) {
+      if (guideMap.hasOwnProperty(k)) {
+        var b = baseId(k);
+        if (b && !guideNorm[b]) guideNorm[b] = guideMap[k];
+      }
+    }
+  }
+  function lookupGuide(id) {
+    if (!id) return null;
+    if (guideMap[id]) return guideMap[id];
+    var b = baseId(id);
+    if (b && guideNorm[b]) return guideNorm[b];
+    return null;
+  }
 
   function fetchGuide() {
     if (guideTried && guideAvailable) return Promise.resolve();
@@ -1880,6 +2004,7 @@
       guideTried = true;
       if (data && data.channels && typeof data.channels === 'object') {
         guideMap = data.channels;
+        buildGuideNorm();
         guideReady = true;
         guideAvailable = true;
         refreshAllEpg();
@@ -1918,12 +2043,13 @@
     var epg = li.querySelector('.card-epg');
     if (!epg) return;
     var id = li.getAttribute('data-id') || (li.dataset ? li.dataset.id : '');
-    if (!id || !guideAvailable || !guideMap[id] || !guideMap[id].programs) {
+    var entry = guideAvailable ? lookupGuide(id) : null;
+    if (!id || !entry || !entry.programs) {
       epg.style.display = 'none';
       epg.innerHTML = '';
       return;
     }
-    var info = currentNext(guideMap[id].programs);
+    var info = currentNext(entry.programs);
     if (!info || !info.now) { epg.style.display = 'none'; epg.innerHTML = ''; return; }
     epg.innerHTML = '';
     var nowT = document.createElement('div');
@@ -2145,7 +2271,7 @@
     var shown = 0;
     chs.forEach(function (c) {
       if (!c.id) return;
-      var e = guideMap[c.id];
+      var e = lookupGuide(c.id);
       if (!e || !e.programs) return;
       var info = currentNext(e.programs);
       if (!info || !info.now) return;
@@ -2230,19 +2356,32 @@
 <nav class="glass-nav" id="glass-nav">
   <button data-act="home" class="active" type="button">
     <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg></span>Accueil</button>
+  <button data-act="country" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>Pays</button>
   <button data-act="guide" type="button">
     <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3M7 13h4M7 16.5h7"/></svg></span>Guide</button>
   <button data-act="search" type="button">
     <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span>Rechercher</button>
-  <button data-act="links" type="button">
+  <button data-act="links" class="admin-only" type="button">
     <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></span>Mes liens</button>
+  <button data-act="settings" class="admin-only" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.9 7.9 0 0 0 0-3l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-2.6-1.5L12.3 2h-3.6l-.4 2.1a7.6 7.6 0 0 0-2.6 1.5l-2-.8-1.8 3.1L3.6 10.5a7.9 7.9 0 0 0 0 3l-1.7 1.3 1.8 3.1 2-.8a7.6 7.6 0 0 0 2.6 1.5l.4 2.1h3.6l.4-2.1a7.6 7.6 0 0 0 2.6-1.5l2 .8 1.8-3.1z"/></svg></span>Paramètres</button>
 </nav>
+
+<div id="profile-overlay" class="profile-overlay">
+  <div class="profile-inner">
+    <h1 class="profile-h">Qui regarde&nbsp;?</h1>
+    <div id="profile-grid" class="profile-grid"></div>
+    <button id="profile-manage" class="profile-manage" type="button">Gérer les profils</button>
+  </div>
+</div>
 
 <script>
 /* Barre flottante Liquid Glass — pilote les boutons existants (100% additif). */
 (function () {
   var nav = document.getElementById('glass-nav');
   if (!nav) return;
+  var countryOverlay = document.getElementById('country-overlay');
   function setActive(btn) {
     var bs = nav.querySelectorAll('button');
     for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('active', bs[i] === btn);
@@ -2255,16 +2394,367 @@
     if (act === 'home') {
       clickId('nav-home');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      setActive(btn);
+    } else if (act === 'country') {
+      if (countryOverlay) countryOverlay.classList.add('visible');
     } else if (act === 'guide') {
       clickId('guide-btn');
     } else if (act === 'search') {
       var s = document.getElementById('search');
       if (s) { s.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { s.focus(); }, 300); }
+      setActive(btn);
     } else if (act === 'links') {
       clickId('sources-btn');
+    } else if (act === 'settings') {
+      clickId('settings-btn');
     }
-    setActive(btn);
   });
+
+  // Feuille « Pays » : fermeture au tap dehors + à la sélection d'une chip.
+  if (countryOverlay) {
+    countryOverlay.addEventListener('click', function (e) {
+      if (e.target === countryOverlay) countryOverlay.classList.remove('visible');
+    });
+    var chips = document.getElementById('chips');
+    if (chips) chips.addEventListener('click', function (e) {
+      var chip = e.target.closest ? e.target.closest('.chip') : null;
+      if (chip) countryOverlay.classList.remove('visible');
+    });
+  }
+})();
+</script>
+<script>
+/* ============================================================
+   DPIPTV — profils locaux, favoris par profil, mode admin,
+   ouverture/fermeture du lecteur. 100% additif : communique avec
+   le moteur via window.__dpiptv / window.__afterRender.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var body = document.body;
+  var channelsEl = document.getElementById('channels');
+
+  function firstLetter(name) { return (name || '?').charAt(0).toUpperCase(); }
+
+  /* ---------------- Mode admin ---------------- */
+  // Même hash SHA-256 que le moteur (constante UNLOCK_HASH).
+  var ADMIN_HASH = '078b4045d476b200dc3bc77e52cbc8110ecc84d8e6b3116027a9ae8b1f8f87b4';
+  function sha256Hex(str) {
+    var buf = new TextEncoder().encode(str);
+    return crypto.subtle.digest('SHA-256', buf).then(function (d) {
+      return Array.prototype.map.call(new Uint8Array(d), function (b) {
+        return ('0' + b.toString(16)).slice(-2);
+      }).join('');
+    });
+  }
+  function isAdmin() { return localStorage.getItem('dpiptv.admin') === '1'; }
+  function applyAdminState() {
+    if (isAdmin()) body.classList.remove('guest');
+    else body.classList.add('guest');
+  }
+  applyAdminState();
+
+  var brand = document.querySelector('.brand');
+  if (brand) {
+    brand.style.cursor = 'pointer';
+    brand.addEventListener('click', function () {
+      if (isAdmin()) return;
+      var pw = prompt('🔒 Mode admin — mot de passe :');
+      if (pw == null) return;
+      sha256Hex(pw).then(function (h) {
+        if (h === ADMIN_HASH) {
+          localStorage.setItem('dpiptv.admin', '1');
+          // Débloque aussi « Mes liens » côté moteur pour éviter un 2e mot de passe.
+          localStorage.setItem('dpiptv.unlocked', '1');
+          body.classList.remove('guest');
+          location.reload();
+        } else {
+          alert('Mot de passe incorrect.');
+        }
+      }).catch(function () { alert('Vérification impossible sur ce navigateur.'); });
+    });
+  }
+
+  var adminLogout = document.getElementById('admin-logout');
+  if (adminLogout) adminLogout.addEventListener('click', function () {
+    localStorage.removeItem('dpiptv.admin');
+    localStorage.removeItem('dpiptv.unlocked');
+    body.classList.add('guest');
+    location.reload();
+  });
+
+  /* ---------------- Lecteur : ouvert au démarrage, fermé sinon ---------------- */
+  var nowPlaying = document.getElementById('now-playing');
+  function syncPlaying() {
+    if (nowPlaying && nowPlaying.classList.contains('visible')) body.classList.add('playing');
+    else body.classList.remove('playing');
+  }
+  if (nowPlaying && window.MutationObserver) {
+    new MutationObserver(syncPlaying).observe(nowPlaying, { attributes: true, attributeFilter: ['class'] });
+  }
+  syncPlaying();
+
+  var playerClose = document.getElementById('player-close');
+  if (playerClose) playerClose.addEventListener('click', function () {
+    try { if (window.__dpiptv && window.__dpiptv.stop) window.__dpiptv.stop(); } catch (e) {}
+    body.classList.remove('playing');
+  });
+
+  /* ---------------- Profils locaux ---------------- */
+  var PROFILE_COLORS = ['#4f8cff', '#e50914', '#34c77b', '#f5a623', '#a855f7', '#ec4899', '#14b8a6', '#f97316'];
+  var profileOverlay = document.getElementById('profile-overlay');
+  var currentProfileId = null;
+
+  function readProfiles() {
+    try { return JSON.parse(localStorage.getItem('dpiptv.profiles') || '[]') || []; }
+    catch (e) { return []; }
+  }
+  function writeProfiles(list) {
+    try { localStorage.setItem('dpiptv.profiles', JSON.stringify(list)); } catch (e) {}
+  }
+  function getCurrentProfile() {
+    if (!currentProfileId) return null;
+    var profs = readProfiles();
+    for (var i = 0; i < profs.length; i++) if (profs[i].id === currentProfileId) return profs[i];
+    return null;
+  }
+  function updateAvatarMini() {
+    var mini = document.getElementById('avatar-mini');
+    if (!mini) return;
+    var p = getCurrentProfile();
+    if (p) { mini.textContent = firstLetter(p.name); mini.style.background = p.color; }
+    else { mini.textContent = '?'; mini.style.background = ''; }
+  }
+
+  function renderProfileGrid() {
+    var grid = document.getElementById('profile-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    var profs = readProfiles();
+    profs.forEach(function (p) {
+      var tile = document.createElement('button');
+      tile.className = 'profile-tile'; tile.type = 'button';
+      var av = document.createElement('span');
+      av.className = 'av'; av.style.background = p.color; av.textContent = firstLetter(p.name);
+      var nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = p.name;
+      var del = document.createElement('span'); del.className = 'del'; del.textContent = '✕ Supprimer';
+      tile.appendChild(av); tile.appendChild(nm); tile.appendChild(del);
+      tile.addEventListener('click', function (e) {
+        if (profileOverlay.classList.contains('managing')) {
+          if (e.target === del || del.contains(e.target)) deleteProfile(p.id);
+          return;
+        }
+        selectProfile(p.id);
+      });
+      grid.appendChild(tile);
+    });
+    var add = document.createElement('button');
+    add.className = 'profile-tile add'; add.type = 'button';
+    var av2 = document.createElement('span'); av2.className = 'av'; av2.textContent = '+';
+    var nm2 = document.createElement('span'); nm2.className = 'nm'; nm2.textContent = 'Ajouter';
+    add.appendChild(av2); add.appendChild(nm2);
+    add.addEventListener('click', addProfile);
+    grid.appendChild(add);
+  }
+
+  function addProfile() {
+    var name = prompt('Nom du profil :');
+    if (name == null) return;
+    name = name.trim();
+    if (!name) return;
+    var profs = readProfiles();
+    var color = PROFILE_COLORS[profs.length % PROFILE_COLORS.length];
+    var p = { id: 'p' + Date.now().toString(36), name: name, color: color };
+    profs.push(p);
+    writeProfiles(profs);
+    selectProfile(p.id);
+  }
+  function selectProfile(id) {
+    currentProfileId = id;
+    try { localStorage.setItem('dpiptv.currentProfile', id); } catch (e) {}
+    updateAvatarMini();
+    closeProfileOverlay();
+    refreshFav();
+  }
+  function deleteProfile(id) {
+    var profs = readProfiles().filter(function (p) { return p.id !== id; });
+    writeProfiles(profs);
+    try { localStorage.removeItem('dpiptv.fav.' + id); } catch (e) {}
+    if (currentProfileId === id) {
+      currentProfileId = null;
+      try { localStorage.removeItem('dpiptv.currentProfile'); } catch (e) {}
+      updateAvatarMini();
+      refreshFav();
+    }
+    renderProfileGrid();
+  }
+  function openProfileOverlay() {
+    renderProfileGrid();
+    if (profileOverlay) profileOverlay.classList.add('visible');
+  }
+  function closeProfileOverlay() {
+    if (!profileOverlay) return;
+    profileOverlay.classList.remove('managing', 'visible');
+    var mb = document.getElementById('profile-manage');
+    if (mb) mb.textContent = 'Gérer les profils';
+  }
+
+  var profileBtn = document.getElementById('profile-btn');
+  if (profileBtn) profileBtn.addEventListener('click', openProfileOverlay);
+  var manageBtn = document.getElementById('profile-manage');
+  if (manageBtn) manageBtn.addEventListener('click', function () {
+    var on = profileOverlay.classList.toggle('managing');
+    this.textContent = on ? 'Terminé' : 'Gérer les profils';
+  });
+
+  /* ---------------- Favoris par profil ---------------- */
+  var STAR_SVG = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3.5l2.6 5.6 6.1.6-4.6 4 1.4 6-5.5-3.2L6 20.3l1.4-6-4.6-4 6.1-.6z"/></svg>';
+
+  function favKey() { return currentProfileId ? 'dpiptv.fav.' + currentProfileId : null; }
+  function readFav() {
+    var k = favKey();
+    if (!k) return [];
+    try { return JSON.parse(localStorage.getItem(k) || '[]') || []; }
+    catch (e) { return []; }
+  }
+  function writeFav(list) {
+    var k = favKey();
+    if (!k) return;
+    try { localStorage.setItem(k, JSON.stringify(list)); } catch (e) {}
+  }
+  function isFav(url) {
+    if (!url) return false;
+    var arr = readFav();
+    for (var i = 0; i < arr.length; i++) if (arr[i].url === url) return true;
+    return false;
+  }
+  function toggleFav(ch) {
+    if (!currentProfileId || !ch || !ch.url) return;
+    var arr = readFav();
+    var idx = -1;
+    for (var i = 0; i < arr.length; i++) if (arr[i].url === ch.url) { idx = i; break; }
+    if (idx >= 0) arr.splice(idx, 1);
+    else arr.unshift({ url: ch.url, name: ch.name || 'Chaîne', logo: ch.logo || '', group: ch.group || '', id: ch.id || '' });
+    writeFav(arr);
+    refreshFav();
+  }
+  function chFromLi(li) {
+    var d = li.dataset || {};
+    return { url: d.url || '', name: d.name || '', logo: d.logo || '', group: d.group || '', id: d.id || '' };
+  }
+  function addStar(li, ch) {
+    li.__starred = true;
+    var actions = li.querySelector('.card-actions');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.className = 'card-actions';
+      li.appendChild(actions);
+    }
+    var star = document.createElement('button');
+    star.type = 'button';
+    star.className = 'card-fav' + (isFav(ch.url) ? ' on' : '');
+    star.title = 'Favori';
+    star.setAttribute('data-url', ch.url);
+    star.innerHTML = STAR_SVG;
+    star.addEventListener('click', function (e) { e.stopPropagation(); toggleFav(ch); });
+    actions.appendChild(star);
+  }
+
+  function buildFavCard(ch) {
+    var li = document.createElement('li');
+    li.className = 'channel';
+    li.dataset.url = ch.url || ''; li.dataset.name = ch.name || '';
+    li.dataset.logo = ch.logo || ''; li.dataset.group = ch.group || ''; li.dataset.id = ch.id || '';
+
+    var poster = document.createElement('div');
+    poster.className = 'poster';
+    if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
+      var im = document.createElement('img');
+      im.className = 'logo'; im.loading = 'lazy'; im.src = ch.logo; im.alt = '';
+      im.onerror = function () {
+        var fb = document.createElement('div');
+        fb.className = 'logo-fallback'; fb.textContent = firstLetter(ch.name);
+        this.replaceWith(fb);
+      };
+      poster.appendChild(im);
+    } else {
+      var fb = document.createElement('div');
+      fb.className = 'logo-fallback';
+      fb.textContent = (ch.logo && !/^https?:\/\//i.test(ch.logo)) ? ch.logo : firstLetter(ch.name);
+      poster.appendChild(fb);
+    }
+    li.appendChild(poster);
+
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = ch.name || 'Chaîne';
+    meta.appendChild(nm);
+    if (ch.group) { var gr = document.createElement('div'); gr.className = 'group'; gr.textContent = ch.group; meta.appendChild(gr); }
+    li.appendChild(meta);
+
+    var actions = document.createElement('div');
+    actions.className = 'card-actions';
+    li.appendChild(actions);
+
+    addStar(li, ch);
+    li.addEventListener('click', function () { if (window.__dpiptv) window.__dpiptv.play(ch); });
+    return li;
+  }
+
+  function injectFavRail() {
+    var existing = channelsEl.querySelector('.rail.fav');
+    if (existing) existing.parentNode.removeChild(existing);
+    if (!currentProfileId) return;
+    var favs = readFav();
+    if (!favs.length) return;
+    var rail = document.createElement('section');
+    rail.className = 'rail fav';
+    var h = document.createElement('h3'); h.className = 'rail-title'; h.textContent = '★ Favoris';
+    var track = document.createElement('div'); track.className = 'rail-track';
+    favs.forEach(function (ch) { track.appendChild(buildFavCard(ch)); });
+    rail.appendChild(h); rail.appendChild(track);
+    channelsEl.insertBefore(rail, channelsEl.firstChild);
+  }
+  function addStarsToCards() {
+    var cards = channelsEl.querySelectorAll('.channel');
+    for (var i = 0; i < cards.length; i++) {
+      var li = cards[i];
+      if (li.__starred) continue;
+      if (!(li.dataset && li.dataset.url)) continue;
+      addStar(li, chFromLi(li));
+    }
+  }
+  function refreshFav() {
+    var stars = channelsEl.querySelectorAll('.card-fav');
+    for (var i = 0; i < stars.length; i++) {
+      var url = stars[i].getAttribute('data-url');
+      if (url != null) stars[i].classList.toggle('on', isFav(url));
+    }
+    injectFavRail();
+  }
+
+  // Décoration post-render : enveloppe window.__afterRender (railify) sans le réécrire.
+  var prevAfterRender = window.__afterRender;
+  window.__afterRender = function (globalMode) {
+    if (typeof prevAfterRender === 'function') {
+      try { prevAfterRender(globalMode); } catch (e) {}
+    }
+    try {
+      addStarsToCards();
+      injectFavRail();
+    } catch (e) {}
+  };
+
+  /* ---------------- Init ---------------- */
+  currentProfileId = null;
+  try { currentProfileId = localStorage.getItem('dpiptv.currentProfile'); } catch (e) {}
+  if (currentProfileId && !getCurrentProfile()) {
+    currentProfileId = null;
+    try { localStorage.removeItem('dpiptv.currentProfile'); } catch (e) {}
+  }
+  updateAvatarMini();
+  if (!currentProfileId) openProfileOverlay();
 })();
 </script>
 </body>
