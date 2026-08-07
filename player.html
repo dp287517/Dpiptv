@@ -2096,15 +2096,20 @@
     for (var i = 0; i < cards.length; i++) attachEpg(cards[i]);
   }
 
-  /* ---------------- Recently viewed ---------------- */
-  var RECENT_KEY = 'dpiptv.recent';
+  /* ---------------- Recently viewed (per profile) ---------------- */
   var RECENT_MAX = 15;
+  // Keyed per current profile so each profile has its own history.
+  function recentKey() {
+    var p = '';
+    try { p = localStorage.getItem('dpiptv.currentProfile') || ''; } catch (e) {}
+    return 'dpiptv.recent' + (p ? '.' + p : '');
+  }
   function readRecent() {
-    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') || []; }
+    try { return JSON.parse(localStorage.getItem(recentKey()) || '[]') || []; }
     catch (e) { return []; }
   }
   function writeRecent(list) {
-    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) {}
+    try { localStorage.setItem(recentKey(), JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) {}
   }
   // Exposed to the engine: called from play() with the channel object.
   window.__recordRecent = function (ch) {
@@ -2207,6 +2212,18 @@
     rail.appendChild(track);
     return rail;
   }
+
+  // Rebuild just the "Récemment vues" rail in place (used on profile switch).
+  window.__refreshRecentRail = function () {
+    var old = channelsEl.querySelector('.rail.recent');
+    if (old) old.parentNode.removeChild(old);
+    var rail = buildRecentRail();
+    if (!rail) return;
+    var fav = channelsEl.querySelector('.rail.fav');
+    if (fav && fav.nextSibling) channelsEl.insertBefore(rail, fav.nextSibling);
+    else if (fav) channelsEl.appendChild(rail);
+    else channelsEl.insertBefore(rail, channelsEl.firstChild);
+  };
 
   /* ---------------- Railify (main render hook) ---------------- */
   // Called by the engine at the end of render(). Groups the freshly rendered
@@ -2637,16 +2654,19 @@
     updateAvatarMini();
     closeProfileOverlay();
     refreshFav();
+    if (window.__refreshRecentRail) window.__refreshRecentRail();
   }
   function deleteProfile(id) {
     var profs = readProfiles().filter(function (p) { return p.id !== id; });
     writeProfiles(profs);
     try { localStorage.removeItem('dpiptv.fav.' + id); } catch (e) {}
+    try { localStorage.removeItem('dpiptv.recent.' + id); } catch (e) {}
     if (currentProfileId === id) {
       currentProfileId = null;
       try { localStorage.removeItem('dpiptv.currentProfile'); } catch (e) {}
       updateAvatarMini();
       refreshFav();
+      if (window.__refreshRecentRail) window.__refreshRecentRail();
     }
     renderProfileGrid();
   }
