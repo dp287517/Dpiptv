@@ -1,0 +1,37 @@
+name: sync-upstream
+# Garde les playlists du fork à jour avec iptv-org/iptv : si des liens changent
+# ou sont réparés en amont, ils arrivent ici — et le diff du commit montre
+# exactement ce qui a changé.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * *' # tous les jours ~05:17 UTC
+permissions:
+  contents: write
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: master
+          fetch-depth: 0
+      - name: Sync streams/ + PLAYLISTS.md from iptv-org/iptv
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/iptv-org/iptv.git || true
+          git fetch upstream master --depth=1
+          # N'importe que les données de flux (garde nos fichiers personnalisés intacts)
+          git checkout upstream/master -- streams/ PLAYLISTS.md
+          if git diff --cached --quiet; then
+            echo "Aucun changement de liens en amont."
+            exit 0
+          fi
+          CHANGED=$(git diff --cached --name-only | wc -l | tr -d ' ')
+          git commit -m "Sync playlists from iptv-org/iptv ($CHANGED fichier(s) mis à jour)"
+          git push origin HEAD:master
