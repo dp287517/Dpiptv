@@ -1008,31 +1008,70 @@
     // --- HLS (.m3u8 or unknown, the IPTV default) ---
     if (window.Hls && Hls.isSupported()) {
       dbg('   moteur = hls.js' + (useProxy ? ' (loader proxy)' : ''));
-      // Buffer generously to ride out network hiccups / a slow proxy, and
-      // avoid aggressive live-edge chasing that causes micro-freezes.
+      // Tolerant profile for weak/bursty sources: big buffer, sit further
+      // behind live, aggressive nudging, and many fragment retries.
       var cfg = {
-        maxBufferLength: 30,
-        maxMaxBufferLength: 120,
-        backBufferLength: 30,
-        maxBufferHole: 0.5,
-        liveSyncDurationCount: 4,
-        fragLoadingMaxRetry: 8,
-        manifestLoadingMaxRetry: 4,
-        levelLoadingMaxRetry: 4,
-        fragLoadingRetryDelay: 800
+        maxBufferLength: 60,
+        maxMaxBufferLength: 600,
+        backBufferLength: 60,
+        maxBufferHole: 1,
+        highBufferWatchdogPeriod: 1,
+        nudgeOffset: 0.2,
+        nudgeMaxRetry: 15,
+        liveSyncDurationCount: 6,
+        liveMaxLatencyDurationCount: 40,
+        fragLoadingMaxRetry: 12,
+        fragLoadingRetryDelay: 500,
+        fragLoadingMaxRetryTimeout: 8000,
+        manifestLoadingMaxRetry: 6,
+        levelLoadingMaxRetry: 6,
+        startFragPrefetch: true
       };
       if (useProxy) {
         var L = getProxyLoader();
         if (L) { cfg.loader = L; cfg.pLoader = L; cfg.fLoader = L; }
       }
+      // Jump a stall hole toward already-buffered data instead of freezing.
+      function skipStallHole() {
+        try {
+          var b = video.buffered, t = video.currentTime;
+          for (var i = 0; i < b.length; i++) {
+            if (b.start(i) > t && b.start(i) - t < 30) {
+              video.currentTime = b.start(i) + 0.05;
+              dbg('   ↷ saut du trou tampon (+' + (b.start(i) - t).toFixed(1) + 's)');
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+      var recoverCount = 0;
       hls = new Hls(cfg);
       hls.loadSource(ch.url);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, started);
+      hls.on(Hls.Events.MANIFEST_PARSED, function () { recoverCount = 0; started(); });
+      hls.on(Hls.Events.FRAG_BUFFERED, function () { recoverCount = 0; });
       hls.on(Hls.Events.ERROR, function (_evt, data) {
         var code = data && data.response && data.response.code ? ' HTTP ' + data.response.code : '';
         dbg('   hls: ' + (data ? (data.type + '/' + data.details) : 'error') + code + (data && data.fatal ? ' [fatal]' : ''));
-        if (data && data.fatal) onFail('HLS ' + data.details + code);
+        if (!data) return;
+        if (!data.fatal) {
+          if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) skipStallHole();
+          return;
+        }
+        // Fatal: try to recover in place before giving up.
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && recoverCount < 4) {
+          recoverCount++; dbg('   ⚕ récupération média (' + recoverCount + ')'); hls.recoverMediaError(); return;
+        }
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          // If a proxy fallback is available and not yet used, switch to it now
+          // rather than retrying the (blocked) direct load.
+          if (!useProxy && proxyReady() && proxyMode === 'fallback') { onFail('HLS ' + data.details + code); return; }
+          if (recoverCount < 4) {
+            recoverCount++; dbg('   ⚕ relance réseau (' + recoverCount + ')');
+            try { hls.startLoad(); return; } catch (e) {}
+          }
+        }
+        onFail('HLS ' + data.details + code);
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // HLS natif (anciens iPhone sans MSE). Le proxy n'aide ici que s'il
