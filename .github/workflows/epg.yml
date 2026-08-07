@@ -1,0 +1,47 @@
+name: epg-guide
+# Génère le guide des programmes via iptv-org/epg, le convertit en guide.json
+# compact, et le publie sur gh-pages (même origine que le lecteur → pas de CORS).
+on:
+  workflow_dispatch:
+    inputs:
+      sites:
+        description: 'Sites EPG à grabber (séparés par des virgules)'
+        default: 'sporttv.pt'
+  schedule:
+    - cron: '35 4 * * *' # tous les jours ~04:35 UTC
+permissions:
+  contents: write
+concurrency:
+  group: epg-guide
+  cancel-in-progress: true
+env:
+  SITES: ${{ github.event.inputs.sites || 'sporttv.pt' }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6 # le convertisseur scripts/epg-to-guide.mjs est sur la branche courante
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Grab EPG from iptv-org/epg
+        run: |
+          set -e
+          git clone --depth 1 https://github.com/iptv-org/epg.git epg
+          cd epg
+          npm install --no-audit --no-fund
+          npm run grab --- --sites="$SITES" --days=2 --maxConnections=5 --timeout=20000 --output=../guide.xml
+      - name: Convert XMLTV -> guide.json
+        run: node scripts/epg-to-guide.mjs guide.xml guide.json
+      - name: Publish guide.json to gh-pages
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages
+          git worktree add /tmp/site origin/gh-pages
+          cp guide.json /tmp/site/guide.json
+          cd /tmp/site
+          git add guide.json
+          git diff --cached --quiet || git commit -m "Update EPG guide.json ($SITES)"
+          git push origin HEAD:gh-pages

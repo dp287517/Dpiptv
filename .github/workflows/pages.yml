@@ -1,0 +1,32 @@
+name: deploy-pages
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - claude/dpiptv-test-setup-fqxhvb
+    paths:
+      - player.html
+      - .github/workflows/pages.yml
+permissions:
+  contents: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Publish player to gh-pages branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages
+          git worktree add /tmp/site origin/gh-pages
+          cp player.html /tmp/site/index.html
+          cp player.html /tmp/site/player.html
+          cd /tmp/site
+          git add -A
+          git diff --cached --quiet || git commit -m "Deploy web player"
+          git push origin HEAD:gh-pages
