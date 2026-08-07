@@ -1,0 +1,2339 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Dpiptv — Lecteur de test</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0b0f;
+    --bg2: #101016;
+    --surface: #17171d;
+    --surface2: #23232c;
+    --surface3: #2d2d38;
+    --text: #f3f3f7;
+    --muted: #9a9aa8;
+    --accent: #4f8cff;
+    --brand: #e50914;
+    --ok: #34c77b;
+    --warn: #f5a623;
+    --err: #ef5350;
+    --vlc: #ff8800;
+    --radius: 14px;
+    --shadow: 0 8px 28px rgba(0,0,0,.45);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  html { overflow-x: hidden; }
+  body {
+    background:
+      radial-gradient(1200px 500px at 50% -120px, rgba(229,9,20,.18), transparent 70%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px calc(10px);
+    background: linear-gradient(180deg, rgba(10,10,14,.96), rgba(10,10,14,.75) 70%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; flex: none; }
+  .brand-mark {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--brand), #b0060d);
+    color: #fff; font-weight: 800; font-size: .82rem; letter-spacing: .02em;
+    box-shadow: 0 3px 10px rgba(229,9,20,.4);
+  }
+  .brand-name { font-weight: 800; letter-spacing: .12em; font-size: 1rem; color: #fff; }
+  .top-nav { display: flex; gap: 6px; flex: 1; min-width: 0; overflow-x: auto; }
+  .top-nav::-webkit-scrollbar { display: none; }
+  .nav-link {
+    flex: none; background: none; border: none; color: var(--muted);
+    font-size: .9rem; font-weight: 600; padding: 8px 12px; border-radius: 10px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .nav-link:hover { color: var(--text); background: var(--surface2); }
+  .nav-link.active { color: #fff; }
+  .top-actions { display: flex; gap: 8px; flex: none; }
+  #settings-btn, #sources-btn {
+    background: var(--surface2);
+    border: 1px solid var(--surface3);
+    color: var(--text);
+    font-size: .85rem;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #settings-btn:hover, #sources-btn:hover { background: var(--surface3); }
+
+  /* ---------- Player ---------- */
+  .player-wrap {
+    background: #000; position: sticky; top: 54px; z-index: 20;
+    box-shadow: 0 10px 30px rgba(0,0,0,.6);
+  }
+  video {
+    width: 100%;
+    max-height: 46vh;
+    aspect-ratio: 16 / 9;
+    display: block;
+    background: #000;
+  }
+  #now-playing {
+    padding: 9px 16px;
+    background: var(--surface);
+    font-size: .9rem;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--surface2);
+  }
+  #now-playing.visible { display: flex; }
+  #now-playing #now-playing-name { font-weight: 600; }
+  #now-playing .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok);
+    flex: none;
+    animation: pulse 1.5s infinite;
+  }
+  #now-playing.buffering .dot { background: var(--warn); }
+  #buf { display: none; color: var(--warn); font-size: .8rem; }
+  #now-playing.buffering #buf { display: inline; }
+  #now-playing.buffering #now-playing-name { opacity: .6; }
+  @keyframes pulse { 50% { opacity: .3; } }
+
+  /* ---------- Status ---------- */
+  #status {
+    margin: 10px 16px 0;
+    padding: 11px 13px;
+    border-radius: 12px;
+    font-size: .85rem;
+    line-height: 1.45;
+    display: none;
+  }
+  #status.info  { display: block; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+  #status.warn  { display: block; background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+  #status.error { display: block; background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
+  #status .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .action-btn {
+    display: inline-block;
+    padding: 9px 14px;
+    border-radius: 10px;
+    border: none;
+    font-size: .85rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    color: #fff;
+    background: var(--surface2);
+  }
+  .action-btn:hover { filter: brightness(1.12); }
+  .action-btn.vlc { background: var(--vlc); }
+  .action-btn.primary { background: var(--accent); }
+
+  /* ---------- Controls ---------- */
+  .controls { padding: 12px 16px 4px; display: flex; flex-direction: column; gap: 10px; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--surface3);
+    font-size: .85rem;
+    cursor: pointer;
+  }
+  .chip:hover { background: var(--surface3); }
+  .chip.active { background: var(--accent); color: #fff; font-weight: 600; border-color: transparent; }
+  .row { display: flex; gap: 8px; }
+  input[type="search"], input[type="text"], select {
+    flex: 1;
+    padding: 11px 13px;
+    border-radius: 11px;
+    border: 1px solid var(--surface2);
+    background: var(--surface);
+    color: var(--text);
+    font-size: .95rem;
+    -webkit-appearance: none;
+  }
+  input::placeholder { color: var(--muted); }
+  input:focus, select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  button.load {
+    padding: 11px 16px;
+    border-radius: 11px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+    flex: none;
+  }
+  button.load:hover { filter: brightness(1.1); }
+  #global-btn { background: var(--surface2); border: 1px solid var(--surface3); }
+  #global-btn.active { background: var(--accent); border-color: transparent; }
+  #count { padding: 6px 16px 0; font-size: .8rem; color: var(--muted); }
+  .spinner {
+    width: 26px; height: 26px;
+    border: 3px solid var(--surface2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    margin: 30px auto;
+    animation: spin .8s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: .9rem; display: none; }
+
+  /* ---------- Rails (Netflix rows) ---------- */
+  #channels.rails { padding: 10px 0 40px; display: flex; flex-direction: column; gap: 20px; }
+  .rail { display: flex; flex-direction: column; gap: 10px; }
+  .rail-title {
+    font-size: 1.02rem; font-weight: 700; color: #fff;
+    padding: 0 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .rail-title::before {
+    content: ""; width: 4px; height: 18px; border-radius: 3px;
+    background: linear-gradient(180deg, var(--brand), #b0060d);
+  }
+  .rail.recent .rail-title::before { background: linear-gradient(180deg, var(--accent), #2f6bd8); }
+  .rail-track {
+    display: flex; gap: 12px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    padding: 4px 16px 8px;
+    scroll-snap-type: x proximity;
+  }
+  .rail-track::-webkit-scrollbar { height: 8px; }
+  .rail-track::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 8px; }
+  .rail-track::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- Channel card (poster) ---------- */
+  .channel {
+    flex: none;
+    width: 156px;
+    scroll-snap-align: start;
+    display: flex; flex-direction: column;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--surface2);
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    position: relative;
+  }
+  .channel:hover { transform: translateY(-4px); border-color: var(--surface3); box-shadow: var(--shadow); }
+  .channel.playing { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent); }
+  .channel .poster {
+    position: relative;
+    width: 100%; height: 96px;
+    background: linear-gradient(135deg, var(--surface2), var(--surface3));
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .channel .poster img.logo {
+    max-width: 78%; max-height: 74%;
+    object-fit: contain;
+  }
+  .channel .poster .logo-fallback {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1.7rem; color: #fff;
+    background: transparent;
+  }
+  .channel .poster .badge, .channel .poster-badge {
+    position: absolute; top: 6px; right: 6px;
+    font-size: .6rem;
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: rgba(0,0,0,.62);
+    color: #dfe4ee;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    backdrop-filter: blur(2px);
+  }
+  .channel .poster-badge.http, .channel .badge.http { color: var(--warn); }
+  .channel .meta { padding: 9px 10px 8px; min-width: 0; }
+  .channel .name {
+    font-size: .86rem; font-weight: 600; color: #fff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .channel .group {
+    font-size: .72rem; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+  }
+
+  /* EPG bandeau inside card */
+  .card-epg { padding: 0 10px 8px; }
+  .epg-now {
+    font-size: .74rem; color: #cfe0ff; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .epg-next {
+    font-size: .68rem; color: var(--muted); margin-top: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .epg-bar {
+    height: 4px; border-radius: 3px; background: var(--surface3);
+    margin-top: 5px; overflow: hidden;
+  }
+  .epg-bar > span {
+    display: block; height: 100%;
+    background: linear-gradient(90deg, var(--brand), #ff5a63);
+    border-radius: 3px;
+  }
+
+  /* Card action buttons (VLC / copy / hide) */
+  .card-actions {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 8px 9px; margin-top: auto;
+    opacity: .55; transition: opacity .15s ease;
+  }
+  .channel:hover .card-actions { opacity: 1; }
+  .channel .mini-btn {
+    background: var(--surface2);
+    border: none;
+    color: var(--muted);
+    font-size: .82rem;
+    padding: 5px 7px;
+    border-radius: 7px;
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1;
+  }
+  .channel .mini-btn:hover { background: var(--surface3); color: var(--text); }
+  .channel .mini-btn.vlc { color: var(--vlc); font-size: .64rem; font-weight: 800; border: 1px solid var(--vlc); padding: 4px 6px; }
+  .channel .mini-btn.hide { color: var(--err); font-weight: 800; margin-left: auto; }
+
+  /* ---------- Bottom-sheet panels ---------- */
+  .sheet-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.66);
+    z-index: 50;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+  .sheet-overlay.visible { display: flex; }
+  .sheet {
+    background: var(--surface);
+    width: 100%;
+    max-width: 560px;
+    border-radius: 20px 20px 0 0;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 86vh;
+    overflow-y: auto;
+    border: 1px solid var(--surface2);
+    border-bottom: none;
+    box-shadow: 0 -10px 40px rgba(0,0,0,.5);
+  }
+  .sheet h2 { font-size: 1.05rem; }
+  .sheet label { font-size: .8rem; color: var(--muted); }
+  .sheet .hint { font-size: .75rem; color: var(--muted); line-height: 1.5; }
+  .sheet .presets { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sheet .two-btn { display: flex; gap: 8px; }
+  .sheet .two-btn .action-btn { flex: 1; text-align: center; }
+  .chip.custom { background: color-mix(in srgb, var(--ok) 22%, var(--surface2)); }
+  .chip.custom.active { background: var(--ok); color: #06231a; }
+  .chip.add { background: transparent; border: 1px dashed var(--muted); color: var(--muted); }
+  #src-list { display: flex; flex-direction: column; gap: 6px; }
+  .src-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface2); border-radius: 10px; padding: 8px 12px;
+  }
+  .src-item .s-meta { flex: 1; min-width: 0; }
+  .src-item .s-name { font-size: .9rem; font-weight: 500; }
+  .src-item .s-url { font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .src-item .s-del { background: none; border: none; color: var(--err); font-size: 1.1rem; cursor: pointer; padding: 4px 6px; }
+  .src-empty { font-size: .78rem; color: var(--muted); }
+  #diag-log {
+    background: #07090d;
+    border: 1px solid var(--surface2);
+    border-radius: 10px;
+    padding: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .72rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #b9c2d6;
+    max-height: 45vh;
+    overflow-y: auto;
+  }
+
+  /* ---------- Guide overlay ---------- */
+  .guide-overlay { align-items: stretch; justify-content: center; }
+  .guide-sheet {
+    border-radius: 0;
+    max-width: 780px;
+    max-height: 100vh;
+    height: 100%;
+    border: none;
+    padding-top: calc(16px + env(safe-area-inset-top));
+  }
+  .guide-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #guide-list { display: flex; flex-direction: column; gap: 8px; }
+  .guide-row {
+    display: flex; gap: 12px; align-items: center;
+    background: var(--surface2); border: 1px solid var(--surface3);
+    border-radius: 12px; padding: 10px 12px; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .guide-row:hover { border-color: var(--accent); background: var(--surface3); }
+  .guide-logo {
+    flex: none; width: 52px; height: 52px; border-radius: 10px;
+    background: var(--surface); display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .guide-logo img { max-width: 84%; max-height: 84%; object-fit: contain; }
+  .guide-logo-fb { font-weight: 800; font-size: 1.3rem; color: #fff; }
+  .guide-body { flex: 1; min-width: 0; }
+  .guide-name { font-weight: 700; font-size: .95rem; color: #fff; }
+  .guide-now { font-size: .82rem; color: #cfe0ff; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .guide-now b, .guide-next b { color: var(--muted); font-weight: 600; }
+  .guide-next { font-size: .78rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .guide-body .epg-bar { margin: 6px 0 2px; max-width: 320px; }
+  .guide-empty { color: var(--muted); font-size: .9rem; text-align: center; padding: 30px 12px; }
+
+  @media (min-width: 720px) {
+    .channel { width: 178px; }
+    .channel .poster { height: 110px; }
+    video { max-height: 52vh; }
+  }
+
+  /* ============ Liquid Glass ============ */
+  :root {
+    --glass: rgba(255,255,255,0.09);
+    --glass-strong: rgba(26,26,34,0.55);
+    --glass-brd: rgba(255,255,255,0.18);
+    --glass-hi: inset 0 1px 0 rgba(255,255,255,0.28);
+    --glass-blur: saturate(180%) blur(22px);
+  }
+  /* Frosted chips (country + nav pills) */
+  .chips .chip {
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd);
+    box-shadow: var(--glass-hi), 0 2px 10px rgba(0,0,0,.22);
+  }
+  /* Frosted secondary buttons */
+  .action-btn:not(.primary),
+  button.load,
+  #settings-btn, #sources-btn {
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd);
+    box-shadow: var(--glass-hi), 0 2px 10px rgba(0,0,0,.22);
+  }
+  .action-btn.primary {
+    box-shadow: var(--glass-hi), 0 4px 16px rgba(79,140,255,.35);
+  }
+  /* Frosted top bar + bottom sheets */
+  .topbar {
+    background: rgba(11,11,15,.55);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .sheet {
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(30px);
+    backdrop-filter: saturate(180%) blur(30px);
+    border-top: 1px solid var(--glass-brd);
+    box-shadow: var(--glass-hi), 0 -10px 40px rgba(0,0,0,.5);
+  }
+  /* Floating Liquid Glass bottom nav (pill) */
+  body { padding-bottom: 92px; }
+  .glass-nav {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 60;
+    display: flex; gap: 4px; padding: 7px;
+    border-radius: 999px;
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(26px);
+    backdrop-filter: saturate(180%) blur(26px);
+    border: 1px solid var(--glass-brd);
+    box-shadow: var(--glass-hi), 0 12px 44px rgba(0,0,0,.55);
+    max-width: calc(100vw - 24px);
+  }
+  .glass-nav button {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    border: none; background: none; color: var(--muted);
+    font-size: .6rem; font-weight: 600; cursor: pointer;
+    padding: 7px 15px; border-radius: 999px; min-width: 60px;
+    transition: color .2s ease, background .2s ease, box-shadow .2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .glass-nav button .ic { line-height: 0; }
+  .glass-nav button .ic svg { width: 23px; height: 23px; display: block; }
+  /* Inline button icons (top bar / toolbar) */
+  svg.bic { width: 17px; height: 17px; vertical-align: -3px; margin-right: 6px; }
+  #settings-btn svg.bic, #global-btn svg.bic { margin-right: 0; }
+  #settings-btn, #global-btn { display: inline-flex; align-items: center; justify-content: center; }
+  .glass-nav button.active {
+    color: #fff;
+    background: rgba(255,255,255,0.15);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 2px 8px rgba(0,0,0,.25);
+  }
+  .glass-nav button:focus { outline: none; }
+  .glass-nav button:focus-visible { outline: 2px solid rgba(255,255,255,.45); outline-offset: 2px; }
+  .topbar button:focus, .load:focus { outline: none; }
+
+  /* ============ Profils + admin ============ */
+  body.guest .admin-only, body.guest .chip.add { display: none !important; }
+  .avatar-mini {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 9px; color: #fff;
+    font-weight: 800; font-size: .85rem; background: #4f8cff;
+  }
+  #profile-btn { background: none; border: none; padding: 3px; cursor: pointer; display: inline-flex; }
+  .profile-overlay {
+    position: fixed; inset: 0; z-index: 200; display: none;
+    align-items: center; justify-content: center;
+    background: radial-gradient(1000px 500px at 50% -80px, rgba(229,9,20,.18), transparent 70%), rgba(8,8,11,.98);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .profile-overlay.visible { display: flex; }
+  .profile-inner { text-align: center; padding: 24px; width: 100%; max-width: 640px; }
+  .profile-h { font-size: 1.9rem; font-weight: 700; margin-bottom: 28px; color: #fff; }
+  .profile-grid { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; }
+  .profile-tile {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    display: flex; flex-direction: column; align-items: center; gap: 10px; width: 116px;
+  }
+  .profile-tile .av {
+    width: 104px; height: 104px; border-radius: 14px; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 2.4rem; border: 3px solid transparent;
+    transition: border-color .15s, transform .15s;
+    box-shadow: var(--glass-hi), 0 8px 24px rgba(0,0,0,.4);
+  }
+  .profile-tile:hover .av { border-color: #fff; transform: translateY(-2px); }
+  .profile-tile .nm { font-size: .95rem; font-weight: 600; }
+  .profile-tile.add .av {
+    background: var(--glass); border: 1px dashed var(--glass-brd);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    font-weight: 300; font-size: 3rem;
+  }
+  .profile-tile .del {
+    font-size: .7rem; color: var(--err); background: none; border: none; cursor: pointer;
+    display: none;
+  }
+  .profile-overlay.managing .profile-tile .del { display: inline; }
+  .profile-manage {
+    margin-top: 30px; background: var(--glass); color: var(--text);
+    border: 1px solid var(--glass-brd); border-radius: 999px; padding: 9px 22px;
+    font-size: .85rem; cursor: pointer; font-weight: 600;
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  }
+  /* Favorite star on cards */
+  .card-fav {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    padding: 6px 4px; line-height: 0; margin-left: auto;
+  }
+  .card-fav svg { width: 19px; height: 19px; }
+  .card-fav.on { color: #f5c518; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="brand-mark">DP</span><span class="brand-name">DPIPTV</span></div>
+  <nav class="top-nav">
+    <button class="nav-link active" id="nav-home" type="button">Accueil</button>
+    <button class="nav-link" id="guide-btn" type="button"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>Guide</button>
+  </nav>
+  <div class="top-actions">
+    <button id="sources-btn" class="admin-only" title="Ajouter mes propres liens (protégé par mot de passe)"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></button>
+    <button id="settings-btn" class="admin-only" title="Réglages du proxy"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.9 7.9 0 0 0 0-3l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-2.6-1.5L12.3 2h-3.6l-.4 2.1a7.6 7.6 0 0 0-2.6 1.5l-2-.8-1.8 3.1L3.6 10.5a7.9 7.9 0 0 0 0 3l-1.7 1.3 1.8 3.1 2-.8a7.6 7.6 0 0 0 2.6 1.5l.4 2.1h3.6l.4-2.1a7.6 7.6 0 0 0 2.6-1.5l2 .8 1.8-3.1z"/></svg></button>
+    <button id="profile-btn" title="Changer de profil"><span class="avatar-mini" id="avatar-mini">?</span></button>
+  </div>
+</div>
+
+<div class="player-wrap" id="player-wrap">
+  <button id="player-close" title="Fermer le lecteur" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <video id="video" controls playsinline autoplay></video>
+</div>
+<div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span><span id="buf">⏳ mise en mémoire tampon…</span></div>
+<div id="status"></div>
+
+<div class="controls">
+  <div class="chips" id="chips"></div>
+  <div class="row">
+    <input type="text" id="playlist-input" placeholder="Code (fr, us…) ou un lien http(s) direct" value="fr">
+    <button class="load" id="load-btn">Charger</button>
+  </div>
+  <div class="row">
+    <input type="search" id="search" placeholder="🔍 Rechercher une chaîne…">
+    <button class="load" id="global-btn" title="Rechercher dans toutes les playlists (tous pays)"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button>
+  </div>
+</div>
+
+<div id="count"></div>
+<div class="spinner" id="spinner"></div>
+<div id="empty">Aucune chaîne trouvée.</div>
+<div id="channels" class="rails"></div>
+
+<div id="sources-overlay" class="sheet-overlay">
+  <div class="sheet">
+    <h2>➕ Mes liens</h2>
+    <p class="hint">
+      Colle <b>ton propre lien</b>, donne-lui un nom, une langue et une icône.
+      Tes chaînes et playlists sont enregistrées sur cet appareil.
+      Tu es responsable des liens que tu ajoutes.
+    </p>
+    <label for="src-url">Lien du flux (ou d'une playlist .m3u)</label>
+    <input type="text" id="src-url" placeholder="https://… ou http://…" autocapitalize="off" autocomplete="off" spellcheck="false">
+    <label for="src-name">Nom de la chaîne</label>
+    <input type="text" id="src-name" placeholder="Ex : beIN Sports 1">
+    <label for="src-group">Langue / catégorie</label>
+    <div class="presets" id="lang-presets"></div>
+    <input type="text" id="src-group" placeholder="Ex : Français, Sport, Arabe…">
+    <label for="src-logo">Icône — lien d'un logo ou emoji (optionnel)</label>
+    <input type="text" id="src-logo" placeholder="https://…/logo.png  ou  ⚽ 🎬 📺" autocapitalize="off" autocomplete="off" spellcheck="false">
+    <div class="two-btn">
+      <button class="action-btn" id="src-play">▶ Lire</button>
+      <button class="action-btn primary" id="src-chan">➕ Ajouter la chaîne</button>
+    </div>
+    <button class="action-btn" id="src-add" style="width:100%">📃 C'est une playlist .m3u — l'importer en entier</button>
+    <div id="my-channels-block" style="display:none">
+      <label>⭐ Mes chaînes</label>
+      <div id="my-list"></div>
+    </div>
+    <label>Mes playlists importées</label>
+    <div id="src-list"></div>
+    <label>Synchroniser entre appareils</label>
+    <p class="hint">
+      « Mes liens » est enregistré sur cet appareil uniquement. Pour retrouver ta liste
+      sur un autre (Mac, autre téléphone) : <b>Exporter</b> ici → copie le code → sur l'autre
+      appareil, ouvre « Mes liens » → <b>Importer</b> → colle le code.
+    </p>
+    <div class="two-btn">
+      <button class="action-btn" id="src-export">⤴ Exporter</button>
+      <button class="action-btn" id="src-import">⤵ Importer</button>
+    </div>
+    <button class="action-btn" id="src-lock" style="width:100%">🔒 Verrouiller « Mes liens »</button>
+  </div>
+</div>
+
+<div id="settings-overlay" class="sheet-overlay">
+  <div class="sheet">
+    <h2>⚙️ Proxy de flux</h2>
+    <p class="hint">
+      Le proxy contourne deux blocages du navigateur : les flux en <b>http://</b> non sécurisé
+      et les serveurs sans <b>CORS</b>. Le flux vidéo transite alors par le proxy.
+    </p>
+    <label for="proxy-mode">Mode</label>
+    <select id="proxy-mode">
+      <option value="fallback">Automatique — nouvel essai via proxy si la lecture directe échoue (recommandé)</option>
+      <option value="always">Toujours passer par le proxy</option>
+      <option value="off">Désactivé — lecture directe uniquement</option>
+    </select>
+    <label for="proxy-url">URL du proxy (<code>{url}</code> = flux encodé)</label>
+    <input type="text" id="proxy-url" placeholder="https://mon-proxy.workers.dev/?url={url}">
+    <div class="presets">
+      <button class="action-btn" id="preset-corsproxy">corsproxy.io (public)</button>
+      <button class="action-btn" id="preset-allorigins">allorigins.win (public)</button>
+    </div>
+    <p class="hint">
+      Un proxy <b>Cloudflare Worker personnel</b> est déjà configuré par défaut (rapide, non partagé).
+      Pour en utiliser un autre, colle son URL ici (le fichier <b>proxy-worker.js</b> du repo permet
+      d’en déployer un en 5 min — voir TESTING.md).
+      Note : les chaînes <b>géo-bloquées</b> ou mortes resteront illisibles quel que soit le proxy ;
+      le bouton VLC reste la valeur sûre.
+    </p>
+    <button class="action-btn primary" id="settings-save">Enregistrer</button>
+    <button class="action-btn" id="unhide-all" style="width:100%">👁 Réafficher les chaînes masquées</button>
+    <button class="action-btn" id="diag-open" style="width:100%">🐞 Diagnostic (logs de lecture)</button>
+    <button class="action-btn" id="admin-logout" style="width:100%">🚪 Quitter le mode admin</button>
+  </div>
+</div>
+
+<div id="diag-overlay" class="sheet-overlay">
+  <div class="sheet">
+    <h2>🐞 Diagnostic</h2>
+    <p class="hint">
+      Journal de la dernière lecture (format détecté, moteur, proxy, erreurs réseau et code HTTP).
+      Lance une chaîne, rouvre ce panneau, et lis — ou touche « Copier » pour partager le texte.
+    </p>
+    <div id="diag-log">Aucun événement pour l'instant. Lance une chaîne puis rouvre ce panneau.</div>
+    <div class="two-btn">
+      <button class="action-btn" id="diag-copy">⧉ Copier les logs</button>
+      <button class="action-btn" id="diag-clear">🗑 Vider</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var REPO = 'dp287517/Dpiptv';
+  var BRANCH = 'master';
+  var QUICK = ['fr', 'ch', 'be', 'uk', 'us', 'de', 'it', 'es', 'pt'];
+  var DEFAULT_PROXY = 'https://poly-proxy.palhadaniel-elec.workers.dev/?url={url}';
+
+  var video = document.getElementById('video');
+  var statusEl = document.getElementById('status');
+  var channelsEl = document.getElementById('channels');
+  var countEl = document.getElementById('count');
+  var searchEl = document.getElementById('search');
+  var inputEl = document.getElementById('playlist-input');
+  var spinnerEl = document.getElementById('spinner');
+  var emptyEl = document.getElementById('empty');
+  var nowPlayingEl = document.getElementById('now-playing');
+  var nowPlayingName = document.getElementById('now-playing-name');
+  var chipsEl = document.getElementById('chips');
+
+  var channels = [];
+  var hls = null;
+  var mpegts = null;
+  var dash = null;
+  var playToken = 0;
+
+  /* ---------------- Hidden channels ---------------- */
+  // Channels the user removed from view, keyed by URL, persisted per device.
+  var hidden = {};
+  try {
+    (JSON.parse(localStorage.getItem('dpiptv.hidden') || '[]')).forEach(function (u) { hidden[u] = 1; });
+  } catch (e) { hidden = {}; }
+  function hiddenCount() { return Object.keys(hidden).length; }
+  function saveHidden() { localStorage.setItem('dpiptv.hidden', JSON.stringify(Object.keys(hidden))); }
+  function hideChannel(ch) {
+    hidden[ch.url] = 1;
+    saveHidden();
+    render(searchEl.value);
+    var undo = document.createElement('button');
+    undo.className = 'action-btn';
+    undo.textContent = '↩ Annuler';
+    undo.addEventListener('click', function (e) {
+      e.stopPropagation();
+      delete hidden[ch.url]; saveHidden(); render(searchEl.value);
+      setStatus('info', '« ' + escapeHtml(ch.name) + ' » réaffichée.');
+    });
+    setStatus('info', '« ' + escapeHtml(ch.name) + ' » masquée.', [undo]);
+  }
+  function unhideAll() {
+    hidden = {};
+    saveHidden();
+    render(searchEl.value);
+    setStatus('info', 'Toutes les chaînes masquées ont été réaffichées.');
+  }
+
+  /* ---------------- Proxy settings ---------------- */
+
+  var proxyTpl = localStorage.getItem('dpiptv.proxyTpl');
+  if (proxyTpl === null) proxyTpl = DEFAULT_PROXY;
+  var proxyMode = localStorage.getItem('dpiptv.proxyMode') || 'fallback';
+
+  function proxyPrefix() {
+    var i = proxyTpl.indexOf('{url}');
+    return i >= 0 ? proxyTpl.slice(0, i) : proxyTpl;
+  }
+  function proxyReady() {
+    return proxyMode !== 'off' && !!proxyTpl;
+  }
+  function isProxied(u) {
+    var p = proxyPrefix();
+    return !!p && u.indexOf(p) === 0;
+  }
+  function proxify(u) {
+    if (!proxyTpl || isProxied(u)) return u;
+    if (proxyTpl.indexOf('{url}') >= 0) return proxyTpl.replace('{url}', encodeURIComponent(u));
+    return proxyTpl + encodeURIComponent(u);
+  }
+  function unproxify(u) {
+    if (!isProxied(u)) return u;
+    var rest = u.slice(proxyPrefix().length);
+    try { return decodeURIComponent(rest); } catch (e) { return rest; }
+  }
+
+  /* Rewrites an HLS manifest so every URI goes through the proxy.
+     baseUrl = the ORIGINAL (un-proxied) manifest URL, for relative resolution. */
+  function absUrl(u, baseUrl) {
+    try { return new URL(u, baseUrl).toString(); } catch (e) { return u; }
+  }
+  function rewriteManifest(text, baseUrl) {
+    return text.split('\n').map(function (line) {
+      var t = line.trim();
+      if (!t) return line;
+      if (t.charAt(0) === '#') {
+        return line.replace(/URI="([^"]+)"/g, function (_m, u) {
+          return 'URI="' + proxify(absUrl(u, baseUrl)) + '"';
+        });
+      }
+      return proxify(absUrl(t, baseUrl));
+    }).join('\n');
+  }
+
+  /* hls.js loader that routes every request through the proxy and
+     rewrites manifests client-side (works with any pass-through CORS proxy). */
+  var ProxyLoader = null;
+  function getProxyLoader() {
+    if (ProxyLoader || !window.Hls) return ProxyLoader;
+    var Base = Hls.DefaultConfig.loader;
+    ProxyLoader = function (config) { Base.call(this, config); };
+    ProxyLoader.prototype = Object.create(Base.prototype);
+    ProxyLoader.prototype.constructor = ProxyLoader;
+    ProxyLoader.prototype.load = function (context, config, callbacks) {
+      context.url = proxify(context.url);
+      var onSuccess = callbacks.onSuccess;
+      callbacks.onSuccess = function (response, stats, ctx, xhr) {
+        if (typeof response.data === 'string' && response.data.indexOf('#EXTM3U') === 0) {
+          var base = unproxify(ctx.url);
+          response.data = rewriteManifest(response.data, base);
+        }
+        onSuccess(response, stats, ctx, xhr);
+      };
+      Base.prototype.load.call(this, context, config, callbacks);
+    };
+    return ProxyLoader;
+  }
+
+  /* ---------------- VLC hand-off ---------------- */
+
+  var UA = navigator.userAgent;
+  var IS_IOS = /iPad|iPhone|iPod/.test(UA);
+  var IS_ANDROID = /Android/i.test(UA);
+  var IS_DESKTOP = !IS_IOS && !IS_ANDROID;
+
+  // Mobile registers a URL scheme; desktop VLC does NOT handle vlc://, so on
+  // desktop we hand off a downloadable .m3u (opens in VLC on double-click if
+  // it is the default player) and also copy the link for manual "Open Network".
+  function openInVlc(url, name) {
+    if (IS_IOS) { window.location.href = 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(url); return; }
+    if (IS_ANDROID) {
+      var scheme = url.indexOf('https:') === 0 ? 'https' : 'http';
+      window.location.href = 'intent://' + url.replace(/^https?:\/\//, '') +
+        '#Intent;scheme=' + scheme + ';type=video/*;package=org.videolan.vlc;end';
+      return;
+    }
+    // Desktop: download a tiny .m3u playlist that VLC opens on double-click.
+    // Embed VLC options so it buffers generously (5s) and reconnects on drops —
+    // the main cure for laggy IPTV streams, applied automatically.
+    var m3u = '#EXTM3U\n#EXTINF:-1,' + (name || 'Flux') + '\n' +
+      '#EXTVLCOPT:network-caching=5000\n' +
+      '#EXTVLCOPT:http-reconnect=true\n' +
+      url + '\n';
+    var blob = new Blob([m3u], { type: 'audio/x-mpegurl' });
+    var href = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = href;
+    a.download = ((name || 'stream').replace(/[^\w.\- ]+/g, '_').trim() || 'stream') + '.m3u';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(href); }, 15000);
+    copyText(url, true);
+    setStatus('info',
+      '⬇️ Fichier <b>.m3u</b> téléchargé — <b>double-clique dessus</b> pour l’ouvrir dans VLC. ' +
+      'Le lien est aussi copié : dans VLC, <b>Fichier → Ouvrir un flux réseau</b> (⌘N), colle-le.');
+  }
+
+  function makeVlcLink(url, name, label) {
+    var b = document.createElement('button');
+    b.className = 'action-btn vlc';
+    b.textContent = label || '▶ Ouvrir dans VLC';
+    b.addEventListener('click', function (e) { e.stopPropagation(); openInVlc(url, name); });
+    return b;
+  }
+
+  /* ---------------- Status ---------------- */
+
+  function setStatus(kind, html, actionNodes) {
+    statusEl.className = kind || '';
+    statusEl.innerHTML = html || '';
+    if (actionNodes && actionNodes.length) {
+      var box = document.createElement('div');
+      box.className = 'actions';
+      actionNodes.forEach(function (n) { box.appendChild(n); });
+      statusEl.appendChild(box);
+    }
+  }
+  function makeCopyBtn(u) {
+    var b = document.createElement('button');
+    b.className = 'action-btn';
+    b.textContent = '⧉ Copier le lien';
+    b.addEventListener('click', function (e) { e.stopPropagation(); copyText(u); });
+    return b;
+  }
+  function failActions(ch) {
+    return [makeVlcLink(ch.url, ch.name), makeCopyBtn(ch.url)];
+  }
+  function geoHint(ch) {
+    return /geo.?block/i.test(ch.name)
+      ? ' Cette chaîne est marquée <b>géo-bloquée</b> : elle n’accepte que les connexions depuis son pays d’origine.'
+      : '';
+  }
+
+  /* ---------------- Playlist ---------------- */
+
+  function rawUrl(code) {
+    return 'https://raw.githubusercontent.com/' + REPO + '/' + BRANCH + '/streams/' + code + '.m3u';
+  }
+
+  function parseM3U(text) {
+    var lines = text.split(/\r?\n/);
+    var result = [];
+    var pending = null;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.indexOf('#EXTINF') === 0) {
+        var attrs = {};
+        var re = /([a-zA-Z0-9-]+)="([^"]*)"/g;
+        var m;
+        while ((m = re.exec(line)) !== null) attrs[m[1]] = m[2];
+        var comma = line.lastIndexOf(',');
+        pending = {
+          name: comma >= 0 ? line.slice(comma + 1).trim() : 'Sans nom',
+          logo: attrs['tvg-logo'] || '',
+          group: attrs['group-title'] || '',
+          id: attrs['tvg-id'] || ''
+        };
+      } else if (line.charAt(0) === '#') {
+        continue;
+      } else if (pending) {
+        pending.url = line;
+        result.push(pending);
+        pending = null;
+      }
+    }
+    return result;
+  }
+
+  /* ---------------- Global search (all playlists) ---------------- */
+
+  var globalMode = false;
+  var globalIndex = null;
+  var globalLoadingPromise = null;
+  var MAX_GLOBAL_RESULTS = 400;
+
+  function loadGlobalIndex() {
+    if (globalLoadingPromise) return globalLoadingPromise;
+    countEl.textContent = 'Chargement de la liste des playlists…';
+    globalLoadingPromise = fetch('https://api.github.com/repos/' + REPO + '/contents/streams?ref=' + BRANCH)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (files) {
+        var names = files
+          .filter(function (f) { return /\.m3u$/.test(f.name); })
+          .map(function (f) { return f.name.replace(/\.m3u$/, ''); });
+        var idx = [];
+        var done = 0, i = 0, active = 0, CONC = 12;
+        return new Promise(function (resolve) {
+          function next() {
+            if (done === names.length) { resolve(idx); return; }
+            while (active < CONC && i < names.length) {
+              (function (code) {
+                active++;
+                fetch(rawUrl(code))
+                  .then(function (r) { return r.ok ? r.text() : ''; })
+                  .catch(function () { return ''; })
+                  .then(function (text) {
+                    if (text) {
+                      parseM3U(text).forEach(function (ch) { ch.src = code; idx.push(ch); });
+                    }
+                    done++; active--;
+                    countEl.textContent = 'Indexation mondiale : ' + done + ' / ' + names.length + ' playlists…';
+                    next();
+                  });
+              })(names[i++]);
+            }
+          }
+          next();
+        });
+      })
+      .then(function (idx) {
+        globalIndex = idx;
+        return idx;
+      })
+      .catch(function (err) {
+        globalLoadingPromise = null;
+        setStatus('error', '❌ Impossible de charger l’index mondial (' + escapeHtml(err.message) + '). Réessaie.');
+        throw err;
+      });
+    return globalLoadingPromise;
+  }
+
+  document.getElementById('global-btn').addEventListener('click', function () {
+    globalMode = !globalMode;
+    this.classList.toggle('active', globalMode);
+    searchEl.placeholder = globalMode
+      ? '🌍 Rechercher dans toutes les playlists…'
+      : '🔍 Rechercher une chaîne…';
+    if (globalMode && !globalIndex) {
+      loadGlobalIndex().then(function () { render(searchEl.value); }, function () {});
+    }
+    render(searchEl.value);
+    searchEl.focus();
+  });
+
+  /* ---------------- Rendering ---------------- */
+
+  function render(filter) {
+    var q = (filter || '').toLowerCase();
+    channelsEl.innerHTML = '';
+    var shown = 0;
+
+    var source, truncated = false;
+    if (globalMode) {
+      if (!globalIndex) {
+        emptyEl.style.display = 'none';
+        return; // progress is shown in countEl by loadGlobalIndex
+      }
+      if (q.length < 2) {
+        countEl.textContent = globalIndex.length + ' chaînes indexées (tous pays) — tape au moins 2 lettres';
+        emptyEl.style.display = 'none';
+        return;
+      }
+      source = globalIndex.filter(function (ch) {
+        return !hidden[ch.url] && (ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0);
+      });
+      if (source.length > MAX_GLOBAL_RESULTS) {
+        source = source.slice(0, MAX_GLOBAL_RESULTS);
+        truncated = true;
+      }
+    } else {
+      source = channels.filter(function (ch) {
+        return !hidden[ch.url] && (!q || ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0);
+      });
+    }
+
+    source.forEach(function (ch, idx) {
+      shown++;
+      var li = document.createElement('li');
+      li.className = 'channel';
+      li.dataset.idx = idx;
+      li.dataset.id = ch.id || ''; li.dataset.group = ch.group || '';
+      li.dataset.url = ch.url || ''; li.dataset.name = ch.name || ''; li.dataset.logo = ch.logo || '';
+
+      if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
+        var img = document.createElement('img');
+        img.className = 'logo';
+        img.loading = 'lazy';
+        img.src = ch.logo;
+        img.alt = '';
+        img.onerror = function () {
+          var fb = document.createElement('div');
+          fb.className = 'logo-fallback';
+          fb.textContent = ch.name.charAt(0).toUpperCase();
+          this.replaceWith(fb);
+        };
+        li.appendChild(img);
+      } else {
+        var fb = document.createElement('div');
+        fb.className = 'logo-fallback';
+        // A non-URL logo is treated as an emoji/text icon.
+        fb.textContent = ch.logo ? ch.logo : ch.name.charAt(0).toUpperCase();
+        li.appendChild(fb);
+      }
+
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      var nm = document.createElement('div');
+      nm.className = 'name';
+      nm.textContent = ch.name;
+      meta.appendChild(nm);
+      var groupText = ch.group || '';
+      if (ch.src) groupText = (groupText ? groupText + ' · ' : '') + 'Playlist ' + ch.src.toUpperCase();
+      if (groupText) {
+        var gr = document.createElement('div');
+        gr.className = 'group';
+        gr.textContent = groupText;
+        meta.appendChild(gr);
+      }
+      li.appendChild(meta);
+
+      var isInsecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
+      var badge = document.createElement('span');
+      badge.className = 'badge' + (isInsecure ? ' http' : '');
+      badge.textContent = isInsecure ? 'http' : detectKind(ch.url);
+      li.appendChild(badge);
+
+      var vlc = document.createElement('button');
+      vlc.className = 'mini-btn vlc';
+      vlc.textContent = 'VLC';
+      vlc.title = 'Ouvrir dans VLC';
+      vlc.addEventListener('click', function (e) { e.stopPropagation(); openInVlc(ch.url, ch.name); });
+      li.appendChild(vlc);
+
+      var copy = document.createElement('button');
+      copy.className = 'mini-btn';
+      copy.title = 'Copier le lien du flux';
+      copy.textContent = '⧉';
+      copy.addEventListener('click', function (e) {
+        e.stopPropagation();
+        copyText(ch.url);
+      });
+      li.appendChild(copy);
+
+      var hide = document.createElement('button');
+      hide.className = 'mini-btn hide';
+      hide.title = 'Masquer cette chaîne';
+      hide.textContent = '✕';
+      hide.addEventListener('click', function (e) { e.stopPropagation(); hideChannel(ch); });
+      li.appendChild(hide);
+
+      li.addEventListener('click', function () { play(ch, li, false); });
+      channelsEl.appendChild(li);
+    });
+    if (globalMode) {
+      countEl.textContent = shown + (truncated ? '+' : '') + ' résultat(s) sur ' + globalIndex.length +
+        ' chaînes (tous pays)' + (truncated ? ' — affine la recherche' : '');
+      emptyEl.style.display = shown ? 'none' : 'block';
+    } else {
+      countEl.textContent = channels.length ? shown + ' / ' + channels.length + ' chaînes' : '';
+      emptyEl.style.display = channels.length && !shown ? 'block' : 'none';
+    }
+    if (typeof window.__afterRender === 'function') { try { window.__afterRender(globalMode); } catch (e) {} }
+  }
+
+  function copyText(text, silent) {
+    function done() { if (!silent) setStatus('info', 'Lien copié ✔ — colle-le dans VLC ou ton app IPTV.'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else {
+      fallbackCopy(text);
+      done();
+    }
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+  }
+
+  /* ---------------- Playback ---------------- */
+
+  function stopPlayback() {
+    playToken++;
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    if (mpegts) { try { mpegts.destroy(); } catch (e) {} mpegts = null; }
+    if (dash) { try { dash.reset(); } catch (e) {} dash = null; }
+    nowPlayingEl.classList.remove('buffering');
+    video.removeAttribute('src');
+    video.load();
+  }
+
+  // Decide which playback engine a URL needs, from its extension.
+  function detectKind(url) {
+    var u = url.split('?')[0].toLowerCase();
+    if (/\.mpd$/.test(u)) return 'dash';
+    if (/\.m3u8?$/.test(u)) return 'hls';
+    if (/\.(ts|mts|m2ts|mpeg|mpg)$/.test(u)) return 'mpegts';
+    if (/\.(mp4|m4v|webm|ogg|ogv|mov)$/.test(u)) return 'file';
+    return 'hls'; // most IPTV links without an extension are HLS
+  }
+
+  function markPlaying(li) {
+    var prev = channelsEl.querySelector('.channel.playing');
+    if (prev) prev.classList.remove('playing');
+    if (li) li.classList.add('playing');
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  /* ---------------- Diagnostics log ---------------- */
+
+  var diagLog = [];
+  function pad2(n) { return ('0' + n).slice(-2); }
+  function dbg(msg) {
+    var t = new Date();
+    var ts = pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + ':' + pad2(t.getSeconds());
+    diagLog.push('[' + ts + '] ' + msg);
+    if (diagLog.length > 400) diagLog.shift();
+    var box = document.getElementById('diag-log');
+    if (box) { box.textContent = diagLog.join('\n'); box.scrollTop = box.scrollHeight; }
+    try { console.log('[dpiptv] ' + msg); } catch (e) {}
+  }
+
+  // Network probe: reports HTTP status, or distinguishes a CORS/mixed-content
+  // block (fetch rejects) from a dead host — helpful for a black screen.
+  function probe(url, label) {
+    fetch(url, { method: 'GET', headers: { Range: 'bytes=0-1' } }).then(function (r) {
+      dbg('🔎 ' + label + ' → HTTP ' + r.status + ' ' + (r.type || '') +
+        ' | CORS ' + (r.headers.get('access-control-allow-origin') ? 'ok' : 'absent'));
+    }).catch(function (e) {
+      dbg('🔎 ' + label + ' → bloqué/injoignable (' + (e && e.message ? e.message : 'network') +
+        ') — CORS, mixed-content http://, ou hôte mort');
+    });
+  }
+
+  function play(ch, li, viaProxy) {
+    stopPlayback();
+    var token = playToken;
+    markPlaying(li);
+    nowPlayingEl.classList.add('visible');
+    nowPlayingName.textContent = ch.name;
+    try { if (typeof window.__recordRecent === 'function') window.__recordRecent(ch); } catch (e) {}
+    setStatus('', '');
+
+    var insecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
+    var kind = detectKind(ch.url);
+    var useProxy = !!viaProxy || (proxyMode === 'always' && proxyReady());
+    dbg('▶ « ' + ch.name +' »');
+    dbg('   url = ' + ch.url);
+    dbg('   format=' + kind + ' · http-non-sécurisé=' + (insecure ? 'oui' : 'non') +
+        ' · proxy=' + (useProxy ? 'oui' : 'non') + (viaProxy ? ' (2e essai)' : ''));
+    if (insecure && !useProxy) {
+      if (proxyReady()) {
+        useProxy = true;
+      } else {
+        setStatus('warn',
+          '⚠️ « ' + escapeHtml(ch.name) + ' » est en <b>http://</b> non sécurisé : le navigateur le bloque. ' +
+          'Active le proxy (⚙️ en haut) ou ouvre-le dans VLC :',
+          failActions(ch));
+        return;
+      }
+    }
+
+    setStatus('info', 'Chargement de « ' + escapeHtml(ch.name) + ' »' + (useProxy ? ' <b>via proxy</b>' : '') + '…');
+
+    function onFail(reason) {
+      if (token !== playToken) return;
+      dbg('   ✖ échec' + (useProxy ? ' (via proxy)' : '') + (reason ? ' : ' + reason : ''));
+      stopPlayback();
+      if (!useProxy && proxyReady() && proxyMode === 'fallback') {
+        setStatus('info', 'Lecture directe impossible — nouvel essai <b>via proxy</b>…');
+        play(ch, li, true);
+        return;
+      }
+      // Final failure: probe the source to explain the black screen / error.
+      probe(ch.url, 'accès direct');
+      setStatus('error',
+        '❌ Impossible de lire « ' + escapeHtml(ch.name) + ' »' + (useProxy ? ', même via le proxy' : '') +
+        ' (lien mort, serveur bloquant, ou géo-restriction).' + geoHint(ch) +
+        ' VLC depuis ton téléphone a les meilleures chances :',
+        failActions(ch));
+    }
+
+    function started() {
+      if (token !== playToken) return;
+      dbg('   ✔ flux ouvert — démarrage lecture');
+      setStatus('', '');
+      video.play().then(function () { dbg('   ✔ lecture en cours'); })
+        .catch(function (e) { dbg('   ⏸ autoplay bloqué (' + (e && e.name ? e.name : '') + ') — touche ▶'); });
+    }
+    // The proxied URL is used when useProxy is on; hls.js uses its own loader instead.
+    var srcUrl = useProxy ? proxify(ch.url) : ch.url;
+
+    // --- DASH (.mpd) ---
+    if (kind === 'dash') {
+      if (!window.dashjs) { dbg('   moteur DASH indisponible'); setStatus('error', 'Moteur DASH indisponible.', failActions(ch)); return; }
+      dbg('   moteur = dash.js');
+      dash = dashjs.MediaPlayer().create();
+      dash.on(dashjs.MediaPlayer.events.ERROR, function (e) {
+        onFail('DASH ' + (e && e.error ? (e.error.code || e.error.message || JSON.stringify(e.error)) : 'error'));
+      });
+      dash.initialize(video, srcUrl, true);
+      dash.on(dashjs.MediaPlayer.events.CAN_PLAY, started);
+      return;
+    }
+
+    // --- Raw MPEG-TS (.ts) or direct file (mp4/webm…): mpegts.js handles both ---
+    if (kind === 'mpegts' || kind === 'file') {
+      if (window.mpegts && window.mpegts.isSupported && window.mpegts.isSupported()) {
+        var type = kind === 'mpegts' ? 'mpegts' : 'mp4';
+        var isLive = kind === 'mpegts';
+        dbg('   moteur = mpegts.js (type=' + type + ', live=' + isLive + ')');
+        try {
+          mpegts = window.mpegts.createPlayer(
+            { type: type, isLive: isLive, url: srcUrl },
+            {
+              enableWorker: true,
+              // Smoother over lag: keep a stash buffer and don't chase the live
+              // edge (chasing causes stutters on slow/proxied streams).
+              liveBufferLatencyChasing: false,
+              enableStashBuffer: true,
+              stashInitialSize: 384 * 1024,
+              autoCleanupSourceBuffer: true,
+              lazyLoad: false
+            }
+          );
+          mpegts.on(window.mpegts.Events.ERROR, function (a, b, c) {
+            onFail('MPEG-TS ' + [a, b, (c && c.msg) ? c.msg : ''].filter(Boolean).join(' / '));
+          });
+          mpegts.attachMediaElement(video);
+          mpegts.load();
+          video.addEventListener('canplay', function onC() {
+            video.removeEventListener('canplay', onC); started();
+          });
+          return;
+        } catch (e) { dbg('   mpegts.js exception: ' + (e && e.message)); }
+      } else {
+        dbg('   mpegts.js non supporté ici → lecture native');
+      }
+      // Native fallback (Safari can play mp4/mov directly; some can play TS)
+      video.src = srcUrl;
+      video.addEventListener('loadedmetadata', function onMeta() {
+        video.removeEventListener('loadedmetadata', onMeta); started();
+      });
+      video.addEventListener('error', function onErr() {
+        video.removeEventListener('error', onErr);
+        onFail('lecture native impossible (' + ((video.error && video.error.code) || '?') + ')');
+      });
+      return;
+    }
+
+    // --- HLS (.m3u8 or unknown, the IPTV default) ---
+    if (window.Hls && Hls.isSupported()) {
+      dbg('   moteur = hls.js' + (useProxy ? ' (loader proxy)' : ''));
+      // Tolerant profile for weak/bursty sources: big buffer, sit further
+      // behind live, aggressive nudging, and many fragment retries.
+      var cfg = {
+        maxBufferLength: 60,
+        maxMaxBufferLength: 600,
+        backBufferLength: 60,
+        maxBufferHole: 1,
+        highBufferWatchdogPeriod: 1,
+        nudgeOffset: 0.2,
+        nudgeMaxRetry: 15,
+        liveSyncDurationCount: 6,
+        liveMaxLatencyDurationCount: 40,
+        fragLoadingMaxRetry: 12,
+        fragLoadingRetryDelay: 500,
+        fragLoadingMaxRetryTimeout: 8000,
+        manifestLoadingMaxRetry: 6,
+        levelLoadingMaxRetry: 6,
+        startFragPrefetch: true
+      };
+      if (useProxy) {
+        var L = getProxyLoader();
+        if (L) { cfg.loader = L; cfg.pLoader = L; cfg.fLoader = L; }
+      }
+      // Jump a stall hole toward already-buffered data instead of freezing.
+      function skipStallHole() {
+        try {
+          var b = video.buffered, t = video.currentTime;
+          for (var i = 0; i < b.length; i++) {
+            if (b.start(i) > t && b.start(i) - t < 30) {
+              video.currentTime = b.start(i) + 0.05;
+              dbg('   ↷ saut du trou tampon (+' + (b.start(i) - t).toFixed(1) + 's)');
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+      var recoverCount = 0;
+      hls = new Hls(cfg);
+      hls.loadSource(ch.url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, function () { recoverCount = 0; started(); });
+      hls.on(Hls.Events.FRAG_BUFFERED, function () { recoverCount = 0; });
+      hls.on(Hls.Events.ERROR, function (_evt, data) {
+        var code = data && data.response && data.response.code ? ' HTTP ' + data.response.code : '';
+        dbg('   hls: ' + (data ? (data.type + '/' + data.details) : 'error') + code + (data && data.fatal ? ' [fatal]' : ''));
+        if (!data) return;
+        if (!data.fatal) {
+          if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) skipStallHole();
+          return;
+        }
+        // Fatal: try to recover in place before giving up.
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && recoverCount < 4) {
+          recoverCount++; dbg('   ⚕ récupération média (' + recoverCount + ')'); hls.recoverMediaError(); return;
+        }
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          // If a proxy fallback is available and not yet used, switch to it now
+          // rather than retrying the (blocked) direct load.
+          if (!useProxy && proxyReady() && proxyMode === 'fallback') { onFail('HLS ' + data.details + code); return; }
+          if (recoverCount < 4) {
+            recoverCount++; dbg('   ⚕ relance réseau (' + recoverCount + ')');
+            try { hls.startLoad(); return; } catch (e) {}
+          }
+        }
+        onFail('HLS ' + data.details + code);
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // HLS natif (anciens iPhone sans MSE). Le proxy n'aide ici que s'il
+      // réécrit les manifests côté serveur (proxy-worker.js le fait).
+      dbg('   moteur = HLS natif (Safari)');
+      video.src = srcUrl;
+      video.addEventListener('loadedmetadata', function onMeta() {
+        video.removeEventListener('loadedmetadata', onMeta); started();
+      });
+      video.addEventListener('error', function onErr() {
+        video.removeEventListener('error', onErr);
+        onFail('HLS natif impossible (' + ((video.error && video.error.code) || '?') + ')');
+      });
+    } else {
+      dbg('   aucun moteur HLS disponible');
+      setStatus('error', 'Ce navigateur ne prend pas en charge la lecture HLS.', failActions(ch));
+    }
+  }
+
+  /* ---------------- Playlist loading ---------------- */
+
+  // Fetch text with proxy fallback (for custom http:// / no-CORS playlists).
+  function fetchText(url, allowProxy) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }).catch(function (err) {
+      if (allowProxy && proxyReady() && !isProxied(url)) {
+        return fetch(proxify(url)).then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.text();
+        });
+      }
+      throw err;
+    });
+  }
+
+  function exitGlobalMode() {
+    if (!globalMode) return;
+    globalMode = false;
+    document.getElementById('global-btn').classList.remove('active');
+    searchEl.placeholder = '🔍 Rechercher une chaîne…';
+  }
+
+  // Core loader. chipKey marks the active chip; allowProxy enables proxy
+  // fallback when fetching the playlist itself.
+  function doLoad(url, label, chipKey, allowProxy) {
+    exitGlobalMode();
+    setActiveChip(chipKey);
+    stopPlayback();
+    markPlaying(null);
+    nowPlayingEl.classList.remove('visible');
+    channels = [];
+    render('');
+    setStatus('', '');
+    spinnerEl.style.display = 'block';
+
+    fetchText(url, allowProxy)
+      .then(function (text) {
+        channels = parseM3U(text);
+        spinnerEl.style.display = 'none';
+        if (!channels.length) {
+          setStatus('warn', 'Playlist vide ou format inattendu (' + escapeHtml(label) + ').');
+        }
+        searchEl.value = '';
+        render('');
+      })
+      .catch(function (err) {
+        spinnerEl.style.display = 'none';
+        setStatus('error',
+          '❌ Impossible de charger <b>' + escapeHtml(label) + '</b> (' + escapeHtml(err.message) + '). ' +
+          'Vérifie le lien, ou active le proxy (⚙️) si le serveur bloque le navigateur.');
+      });
+  }
+
+  function loadPlaylist(code) {
+    code = (code || '').trim().replace(/\.m3u$/i, '');
+    if (!code) return;
+    // A full URL typed into the code box is treated as a custom playlist.
+    if (/^https?:\/\//i.test(code)) { doLoad(code, code, null, true); return; }
+    inputEl.value = code;
+    doLoad(rawUrl(code), 'streams/' + code + '.m3u', code, false);
+  }
+
+  function setActiveChip(code) {
+    var chips = chipsEl.querySelectorAll('.chip');
+    for (var i = 0; i < chips.length; i++) {
+      chips[i].classList.toggle('active', code != null && chips[i].dataset.code === code);
+    }
+  }
+
+  /* ---------------- Custom sources (user links) ---------------- */
+
+  var LANG_PRESETS = ['Français', 'Anglais', 'Arabe', 'Espagnol', 'Sport', 'Ciné', 'Enfants', 'Info'];
+
+  var customSources = [];   // imported .m3u playlists
+  var customChannels = [];  // individual channels (name/group/logo/url)
+  try { customSources = JSON.parse(localStorage.getItem('dpiptv.custom') || '[]'); } catch (e) { customSources = []; }
+  try { customChannels = JSON.parse(localStorage.getItem('dpiptv.mychannels') || '[]'); } catch (e) { customChannels = []; }
+
+  function saveCustom() { localStorage.setItem('dpiptv.custom', JSON.stringify(customSources)); }
+  function saveMyChannels() { localStorage.setItem('dpiptv.mychannels', JSON.stringify(customChannels)); }
+
+  function loadCustom(cp) { doLoad(cp.url, cp.name, 'custom:' + cp.id, true); }
+
+  // "Mes chaînes" is an in-memory playlist, rendered like any other.
+  function loadMyChannels() {
+    exitGlobalMode();
+    setActiveChip('mychannels');
+    stopPlayback();
+    markPlaying(null);
+    nowPlayingEl.classList.remove('visible');
+    channels = customChannels.map(function (c) {
+      return { name: c.name, url: c.url, logo: c.logo || '', group: c.group || '', id: '' };
+    });
+    spinnerEl.style.display = 'none';
+    setStatus('', '');
+    searchEl.value = '';
+    render('');
+  }
+
+  function renderChips() {
+    chipsEl.innerHTML = '';
+    if (customChannels.length) {
+      var mc = document.createElement('button');
+      mc.className = 'chip custom';
+      mc.dataset.code = 'mychannels';
+      mc.textContent = '⭐ Mes chaînes';
+      mc.addEventListener('click', loadMyChannels);
+      chipsEl.appendChild(mc);
+    }
+    customSources.forEach(function (cp) {
+      var b = document.createElement('button');
+      b.className = 'chip custom';
+      b.dataset.code = 'custom:' + cp.id;
+      b.textContent = '★ ' + cp.name;
+      b.addEventListener('click', function () { loadCustom(cp); });
+      chipsEl.appendChild(b);
+    });
+    QUICK.forEach(function (code) {
+      var b = document.createElement('button');
+      b.className = 'chip';
+      b.dataset.code = code;
+      b.textContent = code.toUpperCase();
+      b.addEventListener('click', function () { loadPlaylist(code); });
+      chipsEl.appendChild(b);
+    });
+    var add = document.createElement('button');
+    add.className = 'chip add';
+    add.textContent = '🔒 Mes liens';
+    add.addEventListener('click', function () { requireUnlock(openSources); });
+    chipsEl.appendChild(add);
+  }
+
+  function makeSrcRow(name, url, onOpen, onDelete) {
+    var row = document.createElement('div');
+    row.className = 'src-item';
+    var meta = document.createElement('div');
+    meta.className = 's-meta';
+    var nm = document.createElement('div'); nm.className = 's-name'; nm.textContent = name;
+    var ur = document.createElement('div'); ur.className = 's-url'; ur.textContent = url;
+    meta.appendChild(nm); meta.appendChild(ur);
+    var open = document.createElement('button');
+    open.className = 'action-btn'; open.textContent = '▶'; open.title = 'Ouvrir';
+    open.addEventListener('click', onOpen);
+    var del = document.createElement('button');
+    del.className = 's-del'; del.textContent = '🗑'; del.title = 'Supprimer';
+    del.addEventListener('click', onDelete);
+    row.appendChild(meta); row.appendChild(open); row.appendChild(del);
+    return row;
+  }
+
+  function renderMyList() {
+    var block = document.getElementById('my-channels-block');
+    var list = document.getElementById('my-list');
+    block.style.display = customChannels.length ? 'block' : 'none';
+    list.innerHTML = '';
+    customChannels.forEach(function (c) {
+      list.appendChild(makeSrcRow(
+        (c.logo && !/^https?:\/\//i.test(c.logo) ? c.logo + ' ' : '') + c.name +
+          (c.group ? ' · ' + c.group : ''),
+        c.url,
+        function () { closeSources(); loadMyChannels(); },
+        function () {
+          customChannels = customChannels.filter(function (x) { return x.id !== c.id; });
+          saveMyChannels(); renderMyList(); renderChips();
+        }
+      ));
+    });
+  }
+
+  function renderSrcList() {
+    var list = document.getElementById('src-list');
+    list.innerHTML = '';
+    if (!customSources.length) {
+      var e = document.createElement('div');
+      e.className = 'src-empty';
+      e.textContent = 'Aucune playlist importée pour l’instant.';
+      list.appendChild(e);
+      return;
+    }
+    customSources.forEach(function (cp) {
+      list.appendChild(makeSrcRow(
+        cp.name, cp.url,
+        function () { closeSources(); loadCustom(cp); },
+        function () {
+          customSources = customSources.filter(function (x) { return x.id !== cp.id; });
+          saveCustom(); renderSrcList(); renderChips();
+        }
+      ));
+    });
+  }
+
+  var srcOverlay = document.getElementById('sources-overlay');
+  var srcUrlInput = document.getElementById('src-url');
+  var srcNameInput = document.getElementById('src-name');
+  var srcGroupInput = document.getElementById('src-group');
+  var srcLogoInput = document.getElementById('src-logo');
+
+  // Language / category quick-pick buttons
+  LANG_PRESETS.forEach(function (lbl) {
+    var b = document.createElement('button');
+    b.className = 'action-btn';
+    b.textContent = lbl;
+    b.addEventListener('click', function () { srcGroupInput.value = lbl; });
+    document.getElementById('lang-presets').appendChild(b);
+  });
+
+  function openSources() { renderMyList(); renderSrcList(); srcOverlay.classList.add('visible'); srcUrlInput.focus(); }
+  function closeSources() { srcOverlay.classList.remove('visible'); }
+  function clearSrcFields() {
+    srcUrlInput.value = ''; srcNameInput.value = '';
+    srcGroupInput.value = ''; srcLogoInput.value = '';
+  }
+
+  function nameFromUrl(u) {
+    try {
+      var p = new URL(u).pathname.split('/').filter(Boolean).pop() || 'Lien';
+      return decodeURIComponent(p).replace(/\.(m3u8?|ts|mpd)$/i, '');
+    } catch (e) { return 'Lien'; }
+  }
+
+  /* ---------------- Access lock for "Mes liens" ---------------- */
+  // Soft lock: the SHA-256 of the password is stored, never the password
+  // itself. This keeps casual visitors out of the panel on a public page;
+  // it is not strong security (a static page can always be inspected).
+  var UNLOCK_HASH = '078b4045d476b200dc3bc77e52cbc8110ecc84d8e6b3116027a9ae8b1f8f87b4';
+  var unlocked = localStorage.getItem('dpiptv.unlocked') === '1';
+
+  function sha256Hex(str) {
+    var buf = new TextEncoder().encode(str);
+    return crypto.subtle.digest('SHA-256', buf).then(function (d) {
+      return Array.prototype.map.call(new Uint8Array(d), function (b) {
+        return ('0' + b.toString(16)).slice(-2);
+      }).join('');
+    });
+  }
+
+  function requireUnlock(cb) {
+    if (unlocked) { cb(); return; }
+    var pw = prompt('🔒 Accès « Mes liens » réservé — mot de passe :');
+    if (pw == null) return;
+    sha256Hex(pw).then(function (h) {
+      if (h === UNLOCK_HASH) {
+        unlocked = true;
+        localStorage.setItem('dpiptv.unlocked', '1');
+        cb();
+      } else {
+        setStatus('error', '🔒 Mot de passe incorrect.');
+      }
+    }).catch(function () {
+      setStatus('error', '🔒 Vérification impossible sur ce navigateur.');
+    });
+  }
+
+  function lockSources() {
+    unlocked = false;
+    localStorage.removeItem('dpiptv.unlocked');
+    closeSources();
+    setStatus('info', '🔒 « Mes liens » verrouillé. Le mot de passe sera redemandé.');
+  }
+
+  document.getElementById('sources-btn').addEventListener('click', function () { requireUnlock(openSources); });
+  document.getElementById('src-lock').addEventListener('click', lockSources);
+  srcOverlay.addEventListener('click', function (e) { if (e.target === srcOverlay) closeSources(); });
+
+  // ▶ Play once, honoring the name/group/icon entered
+  document.getElementById('src-play').addEventListener('click', function () {
+    var url = srcUrlInput.value.trim();
+    if (!url) { srcUrlInput.focus(); return; }
+    var ch = {
+      name: srcNameInput.value.trim() || nameFromUrl(url),
+      url: url,
+      group: srcGroupInput.value.trim() || 'Mon flux',
+      logo: srcLogoInput.value.trim()
+    };
+    closeSources();
+    exitGlobalMode();
+    setActiveChip(null);
+    play(ch, null, false);
+  });
+
+  // ➕ Save an individual channel into "Mes chaînes"
+  document.getElementById('src-chan').addEventListener('click', function () {
+    var url = srcUrlInput.value.trim();
+    if (!url) { srcUrlInput.focus(); return; }
+    if (!/^https?:\/\//i.test(url)) {
+      setStatus('warn', 'Le lien doit commencer par http:// ou https://');
+      return;
+    }
+    var c = {
+      id: Date.now().toString(36),
+      name: srcNameInput.value.trim() || nameFromUrl(url),
+      url: url,
+      group: srcGroupInput.value.trim(),
+      logo: srcLogoInput.value.trim()
+    };
+    customChannels.push(c);
+    saveMyChannels();
+    clearSrcFields();
+    renderChips();
+    closeSources();
+    loadMyChannels();
+  });
+
+  // 📃 Import a whole .m3u playlist
+  document.getElementById('src-add').addEventListener('click', function () {
+    var url = srcUrlInput.value.trim();
+    if (!url) { srcUrlInput.focus(); return; }
+    if (!/^https?:\/\//i.test(url)) {
+      setStatus('warn', 'Le lien doit commencer par http:// ou https://');
+      return;
+    }
+    var cp = { id: Date.now().toString(36), name: srcNameInput.value.trim() || nameFromUrl(url), url: url };
+    customSources.push(cp);
+    saveCustom();
+    clearSrcFields();
+    renderChips();
+    closeSources();
+    loadCustom(cp);
+  });
+
+  // ⤴ Export / ⤵ Import — move "Mes liens" between devices via a copy-paste code
+  function b64encode(str) { return btoa(unescape(encodeURIComponent(str))); }
+  function b64decode(str) { return decodeURIComponent(escape(atob(str))); }
+
+  document.getElementById('src-export').addEventListener('click', function () {
+    var hasProxy = proxyTpl && proxyTpl !== DEFAULT_PROXY;
+    if (!customChannels.length && !customSources.length && !hasProxy) {
+      setStatus('warn', 'Rien à exporter pour l’instant.');
+      return;
+    }
+    // Export also carries the proxy config so all devices share the same worker.
+    var payload = { v: 1, channels: customChannels, playlists: customSources,
+      proxy: { tpl: proxyTpl, mode: proxyMode } };
+    var code = 'DPIPTV1:' + b64encode(JSON.stringify(payload));
+    copyText(code);
+    closeSources();
+    setStatus('info', 'Code d’export copié ✔ (chaînes, playlists <b>et proxy</b>) — envoie-le-toi puis <b>Importe</b>-le sur l’autre appareil.');
+  });
+
+  document.getElementById('src-import').addEventListener('click', function () {
+    var code = prompt('Colle ici le code Dpiptv exporté depuis l’autre appareil :');
+    if (code == null) return;
+    code = code.trim();
+    if (code.indexOf('DPIPTV1:') === 0) code = code.slice('DPIPTV1:'.length);
+    var data;
+    try { data = JSON.parse(b64decode(code)); } catch (e) { setStatus('error', 'Code invalide ou incomplet.'); return; }
+    if (!data || (!data.channels && !data.playlists)) { setStatus('error', 'Code non reconnu.'); return; }
+    var seenCh = {}; customChannels.forEach(function (c) { seenCh[c.url] = 1; });
+    var seenPl = {}; customSources.forEach(function (p) { seenPl[p.url] = 1; });
+    var addedC = 0, addedP = 0;
+    (data.channels || []).forEach(function (c) {
+      if (!c || !c.url || seenCh[c.url]) return;
+      seenCh[c.url] = 1;
+      customChannels.push({ id: Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
+        name: c.name || 'Chaîne', url: c.url, group: c.group || '', logo: c.logo || '' });
+      addedC++;
+    });
+    (data.playlists || []).forEach(function (p) {
+      if (!p || !p.url || seenPl[p.url]) return;
+      seenPl[p.url] = 1;
+      customSources.push({ id: Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
+        name: p.name || 'Playlist', url: p.url });
+      addedP++;
+    });
+    var proxyMsg = '';
+    if (data.proxy && data.proxy.tpl) {
+      proxyTpl = data.proxy.tpl;
+      proxyMode = data.proxy.mode || 'fallback';
+      localStorage.setItem('dpiptv.proxyTpl', proxyTpl);
+      localStorage.setItem('dpiptv.proxyMode', proxyMode);
+      proxyMsg = ' · proxy synchronisé';
+    }
+    saveMyChannels(); saveCustom();
+    renderChips(); renderMyList(); renderSrcList();
+    setStatus('info', 'Import terminé : ' + addedC + ' chaîne(s) et ' + addedP + ' playlist(s)' + proxyMsg + '.');
+  });
+
+  renderChips();
+
+  document.getElementById('load-btn').addEventListener('click', function () {
+    loadPlaylist(inputEl.value);
+  });
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') loadPlaylist(inputEl.value);
+  });
+
+  var searchTimer = null;
+  searchEl.addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () { render(searchEl.value); }, 150);
+  });
+
+  /* ---------------- Settings UI ---------------- */
+
+  var overlay = document.getElementById('settings-overlay');
+  var proxyUrlInput = document.getElementById('proxy-url');
+  var proxyModeSelect = document.getElementById('proxy-mode');
+
+  var unhideBtn = document.getElementById('unhide-all');
+  function refreshUnhideBtn() {
+    var n = hiddenCount();
+    unhideBtn.style.display = n ? 'block' : 'none';
+    unhideBtn.textContent = '👁 Réafficher les chaînes masquées (' + n + ')';
+  }
+  document.getElementById('settings-btn').addEventListener('click', function () {
+    proxyUrlInput.value = proxyTpl;
+    proxyModeSelect.value = proxyMode;
+    refreshUnhideBtn();
+    overlay.classList.add('visible');
+  });
+  unhideBtn.addEventListener('click', function () {
+    unhideAll();
+    overlay.classList.remove('visible');
+  });
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) overlay.classList.remove('visible');
+  });
+  document.getElementById('preset-corsproxy').addEventListener('click', function () {
+    proxyUrlInput.value = 'https://corsproxy.io/?url={url}';
+  });
+  document.getElementById('preset-allorigins').addEventListener('click', function () {
+    proxyUrlInput.value = 'https://api.allorigins.win/raw?url={url}';
+  });
+  document.getElementById('settings-save').addEventListener('click', function () {
+    proxyTpl = proxyUrlInput.value.trim();
+    proxyMode = proxyModeSelect.value;
+    localStorage.setItem('dpiptv.proxyTpl', proxyTpl);
+    localStorage.setItem('dpiptv.proxyMode', proxyMode);
+    overlay.classList.remove('visible');
+    setStatus('info', 'Réglages enregistrés — proxy ' +
+      (proxyReady() ? (proxyMode === 'always' ? 'activé en permanence' : 'activé en secours automatique') : 'désactivé') + '.');
+  });
+
+  /* ---------------- Diagnostics UI ---------------- */
+
+  var diagOverlay = document.getElementById('diag-overlay');
+  document.getElementById('diag-open').addEventListener('click', function () {
+    overlay.classList.remove('visible');
+    var box = document.getElementById('diag-log');
+    if (diagLog.length) { box.textContent = diagLog.join('\n'); box.scrollTop = box.scrollHeight; }
+    diagOverlay.classList.add('visible');
+  });
+  diagOverlay.addEventListener('click', function (e) {
+    if (e.target === diagOverlay) diagOverlay.classList.remove('visible');
+  });
+  document.getElementById('diag-copy').addEventListener('click', function () {
+    copyText(diagLog.join('\n') || '(vide)');
+  });
+  document.getElementById('diag-clear').addEventListener('click', function () {
+    diagLog.length = 0;
+    document.getElementById('diag-log').textContent = 'Journal vidé.';
+  });
+
+  // Buffering indicator + diagnostics on the shared <video> element.
+  var stallAt = 0;
+  ['waiting', 'stalled'].forEach(function (ev) {
+    video.addEventListener(ev, function () {
+      if (!nowPlayingEl.classList.contains('visible')) return;
+      nowPlayingEl.classList.add('buffering');
+      stallAt = Date.now();
+      dbg('   ⏳ tampon (' + ev + ')');
+    });
+  });
+  ['playing', 'canplay'].forEach(function (ev) {
+    video.addEventListener(ev, function () {
+      if (nowPlayingEl.classList.contains('buffering')) {
+        nowPlayingEl.classList.remove('buffering');
+        if (stallAt) { dbg('   ▶ reprise après ' + ((Date.now() - stallAt) / 1000).toFixed(1) + 's'); stallAt = 0; }
+      }
+    });
+  });
+
+  window.__dpiptv = {
+    play: function (ch) { exitGlobalMode(); setActiveChip(null); play(ch, null, false); },
+    openInVlc: openInVlc,
+    loadPlaylist: loadPlaylist,
+    getChannels: function () { return channels.slice(); },
+    isGlobal: function () { return globalMode; },
+    stop: function () { stopPlayback(); markPlaying(null); nowPlayingEl.classList.remove('visible'); }
+  };
+  dbg('Dpiptv prêt · proxy=' + proxyMode + ' · https=' + (location.protocol === 'https:'));
+  loadPlaylist('fr');
+})();
+</script>
+<div id="guide-overlay" class="sheet-overlay guide-overlay">
+  <div class="sheet guide-sheet">
+    <div class="guide-head">
+      <h2>📅 Guide des programmes</h2>
+      <button class="action-btn" id="guide-close">✕ Fermer</button>
+    </div>
+    <p class="hint" id="guide-sub">En ce moment et à suivre sur les chaînes de la playlist courante (celles ayant un identifiant EPG).</p>
+    <button class="action-btn" id="guide-retry" style="display:none">↻ Réessayer de charger le guide</button>
+    <div id="guide-list"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   DPIPTV — couche présentation Netflix (rails + EPG + Guide).
+   100% additif : ne modifie ni ne remplace le moteur d'origine.
+   Communique avec le moteur via window.__dpiptv / window.__afterRender.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var channelsEl = document.getElementById('channels');
+
+  /* ---------------- utils ---------------- */
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+  function firstLetter(name) {
+    return (name || '?').charAt(0).toUpperCase();
+  }
+  function makeFallback(name, cls) {
+    var fb = document.createElement('div');
+    fb.className = cls || 'logo-fallback';
+    fb.textContent = firstLetter(name);
+    return fb;
+  }
+
+  /* ---------------- EPG / guide.json ---------------- */
+  var guideMap = {};
+  var guideReady = false;      // data loaded & usable
+  var guideAvailable = false;  // same as guideReady but semantic for UI
+  var guideTried = false;      // a fetch attempt has completed (ok or ko)
+
+  function fetchGuide() {
+    if (guideTried && guideAvailable) return Promise.resolve();
+    if (guideTried && !guideAvailable) { /* allow explicit retry to re-enter */ }
+    guideTried = false;
+    var ctrl = ('AbortController' in window) ? new AbortController() : null;
+    var to = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 3000) : null;
+    var opts = ctrl ? { signal: ctrl.signal, cache: 'no-store' } : { cache: 'no-store' };
+    return fetch('guide.json', opts).then(function (r) {
+      if (to) { clearTimeout(to); to = null; }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      guideTried = true;
+      if (data && data.channels && typeof data.channels === 'object') {
+        guideMap = data.channels;
+        guideReady = true;
+        guideAvailable = true;
+        refreshAllEpg();
+        if (guideOverlayOpen) renderGuide();
+      } else {
+        guideReady = false; guideAvailable = false;
+      }
+    }).catch(function () {
+      if (to) { clearTimeout(to); to = null; }
+      guideTried = true;
+      guideReady = false;
+      guideAvailable = false;
+      if (guideOverlayOpen) renderGuide();
+    });
+  }
+
+  // Returns {now, next, pct} or null. now may be null if only a future program.
+  function currentNext(programs) {
+    if (!programs || !programs.length) return null;
+    var t = Date.now();
+    var ps = programs.slice().sort(function (a, b) { return (a.start || 0) - (b.start || 0); });
+    var now = null, next = null;
+    for (var i = 0; i < ps.length; i++) {
+      var p = ps[i];
+      if (p.start <= t && t < p.stop) { now = p; next = ps[i + 1] || null; break; }
+      if (p.start > t) { next = p; break; }
+    }
+    if (!now) return next ? { now: null, next: next, pct: 0 } : null;
+    var span = now.stop - now.start;
+    var pct = span > 0 ? Math.max(0, Math.min(100, ((t - now.start) / span) * 100)) : 0;
+    return { now: now, next: next, pct: pct };
+  }
+
+  // Fill (or hide) the .card-epg bandeau of a carded <li>.
+  function attachEpg(li) {
+    var epg = li.querySelector('.card-epg');
+    if (!epg) return;
+    var id = li.getAttribute('data-id') || (li.dataset ? li.dataset.id : '');
+    if (!id || !guideAvailable || !guideMap[id] || !guideMap[id].programs) {
+      epg.style.display = 'none';
+      epg.innerHTML = '';
+      return;
+    }
+    var info = currentNext(guideMap[id].programs);
+    if (!info || !info.now) { epg.style.display = 'none'; epg.innerHTML = ''; return; }
+    epg.innerHTML = '';
+    var nowT = document.createElement('div');
+    nowT.className = 'epg-now';
+    nowT.textContent = info.now.title || '';
+    epg.appendChild(nowT);
+    var bar = document.createElement('div');
+    bar.className = 'epg-bar';
+    var fill = document.createElement('span');
+    fill.style.width = info.pct + '%';
+    bar.appendChild(fill);
+    epg.appendChild(bar);
+    if (info.next && info.next.title) {
+      var nx = document.createElement('div');
+      nx.className = 'epg-next';
+      nx.textContent = 'À suivre : ' + info.next.title;
+      epg.appendChild(nx);
+    }
+    epg.style.display = 'block';
+  }
+
+  function refreshAllEpg() {
+    var cards = channelsEl.querySelectorAll('.channel');
+    for (var i = 0; i < cards.length; i++) attachEpg(cards[i]);
+  }
+
+  /* ---------------- Recently viewed ---------------- */
+  var RECENT_KEY = 'dpiptv.recent';
+  var RECENT_MAX = 15;
+  function readRecent() {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') || []; }
+    catch (e) { return []; }
+  }
+  function writeRecent(list) {
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) {}
+  }
+  // Exposed to the engine: called from play() with the channel object.
+  window.__recordRecent = function (ch) {
+    if (!ch || !ch.url) return;
+    var list = readRecent().filter(function (c) { return c.url !== ch.url; });
+    list.unshift({ name: ch.name || 'Chaîne', url: ch.url, logo: ch.logo || '', group: ch.group || '', id: ch.id || '' });
+    writeRecent(list);
+  };
+
+  /* ---------------- Card building ---------------- */
+  // Transform an engine-rendered <li.channel> (row layout) into a poster card,
+  // MOVING (not recreating) the existing button nodes so their listeners survive.
+  function buildCard(li) {
+    if (li.__carded) return li;
+    var img = li.querySelector('img.logo, .logo-fallback');
+    var meta = li.querySelector('.meta');
+    var badge = li.querySelector('.badge');
+    var miniBtns = li.querySelectorAll('.mini-btn');
+
+    var poster = document.createElement('div');
+    poster.className = 'poster';
+    if (img) poster.appendChild(img);
+    if (badge) { badge.classList.add('poster-badge'); poster.appendChild(badge); }
+
+    var actions = document.createElement('div');
+    actions.className = 'card-actions';
+    Array.prototype.forEach.call(miniBtns, function (b) { actions.appendChild(b); });
+
+    var epg = document.createElement('div');
+    epg.className = 'card-epg';
+    epg.style.display = 'none';
+
+    // Clear remaining children then re-append in card order (refs stay live).
+    while (li.firstChild) li.removeChild(li.firstChild);
+    li.appendChild(poster);
+    if (meta) li.appendChild(meta);
+    li.appendChild(epg);
+    li.appendChild(actions);
+    li.__carded = true;
+    return li;
+  }
+
+  // A poster card for the "Recently viewed" rail, from a stored channel object.
+  function buildRecentCard(ch) {
+    var li = document.createElement('li');
+    li.className = 'channel';
+    li.setAttribute('data-id', ch.id || '');
+
+    var poster = document.createElement('div');
+    poster.className = 'poster';
+    if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
+      var im = document.createElement('img');
+      im.className = 'logo'; im.loading = 'lazy'; im.src = ch.logo; im.alt = '';
+      im.onerror = function () { this.replaceWith(makeFallback(ch.name, 'logo-fallback')); };
+      poster.appendChild(im);
+    } else {
+      var fb = document.createElement('div');
+      fb.className = 'logo-fallback';
+      fb.textContent = (ch.logo && !/^https?:\/\//i.test(ch.logo)) ? ch.logo : firstLetter(ch.name);
+      poster.appendChild(fb);
+    }
+    li.appendChild(poster);
+
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = ch.name || 'Chaîne';
+    meta.appendChild(nm);
+    if (ch.group) { var gr = document.createElement('div'); gr.className = 'group'; gr.textContent = ch.group; meta.appendChild(gr); }
+    li.appendChild(meta);
+
+    var epg = document.createElement('div'); epg.className = 'card-epg'; epg.style.display = 'none';
+    li.appendChild(epg);
+
+    var actions = document.createElement('div');
+    actions.className = 'card-actions';
+    var vlc = document.createElement('button');
+    vlc.className = 'mini-btn vlc'; vlc.textContent = 'VLC'; vlc.title = 'Ouvrir dans VLC';
+    vlc.addEventListener('click', function (e) { e.stopPropagation(); if (window.__dpiptv) window.__dpiptv.openInVlc(ch.url, ch.name); });
+    actions.appendChild(vlc);
+    li.appendChild(actions);
+
+    li.__carded = true;
+    li.addEventListener('click', function () { if (window.__dpiptv) window.__dpiptv.play(ch); });
+    attachEpg(li);
+    return li;
+  }
+
+  function buildRecentRail() {
+    var list = readRecent();
+    if (!list.length) return null;
+    var rail = document.createElement('section');
+    rail.className = 'rail recent';
+    var h = document.createElement('h3');
+    h.className = 'rail-title';
+    h.textContent = 'Reprendre — Récemment vues';
+    var track = document.createElement('div');
+    track.className = 'rail-track';
+    list.forEach(function (ch) { track.appendChild(buildRecentCard(ch)); });
+    rail.appendChild(h);
+    rail.appendChild(track);
+    return rail;
+  }
+
+  /* ---------------- Railify (main render hook) ---------------- */
+  // Called by the engine at the end of render(). Groups the freshly rendered
+  // flat <li.channel> list into horizontal rails by group-title.
+  function railify(globalMode) {
+    // Collect the flat cards the engine just appended (direct children only).
+    var flat = [];
+    var kids = channelsEl.children;
+    for (var i = 0; i < kids.length; i++) {
+      var c = kids[i];
+      if (c.tagName === 'LI' && c.className.indexOf('channel') >= 0) flat.push(c);
+    }
+    if (!flat.length) return; // nothing flat to transform (already railified/empty)
+
+    var order = [], groups = {};
+    flat.forEach(function (li) {
+      var g = (li.getAttribute('data-group') || '').trim();
+      if (!g) g = globalMode ? 'Résultats' : 'Autres';
+      if (!groups[g]) { groups[g] = []; order.push(g); }
+      groups[g].push(li);
+    });
+
+    var frag = document.createDocumentFragment();
+
+    var recentRail = buildRecentRail();
+    if (recentRail) frag.appendChild(recentRail);
+
+    order.forEach(function (g) {
+      var rail = document.createElement('section');
+      rail.className = 'rail';
+      var h = document.createElement('h3');
+      h.className = 'rail-title';
+      h.textContent = g;
+      var track = document.createElement('div');
+      track.className = 'rail-track';
+      groups[g].forEach(function (li) {
+        buildCard(li);
+        attachEpg(li);
+        track.appendChild(li);
+      });
+      rail.appendChild(h);
+      rail.appendChild(track);
+      frag.appendChild(rail);
+    });
+
+    while (channelsEl.firstChild) channelsEl.removeChild(channelsEl.firstChild);
+    channelsEl.appendChild(frag);
+  }
+
+  // The engine calls this at the end of render().
+  window.__afterRender = railify;
+
+  /* ---------------- Guide overlay ---------------- */
+  var guideOverlay = document.getElementById('guide-overlay');
+  var guideOverlayOpen = false;
+
+  function txtGuideLogo(name) {
+    var d = document.createElement('div');
+    d.className = 'guide-logo-fb';
+    d.textContent = firstLetter(name);
+    return d;
+  }
+
+  function renderGuide() {
+    var listEl = document.getElementById('guide-list');
+    var retry = document.getElementById('guide-retry');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    retry.style.display = guideAvailable ? 'none' : (guideTried ? 'block' : 'none');
+
+    if (!guideAvailable) {
+      var m = document.createElement('div');
+      m.className = 'guide-empty';
+      m.textContent = guideTried
+        ? 'Guide des programmes indisponible pour le moment.'
+        : 'Chargement du guide…';
+      listEl.appendChild(m);
+      return;
+    }
+
+    var chs = (window.__dpiptv && window.__dpiptv.getChannels) ? window.__dpiptv.getChannels() : [];
+    var shown = 0;
+    chs.forEach(function (c) {
+      if (!c.id) return;
+      var e = guideMap[c.id];
+      if (!e || !e.programs) return;
+      var info = currentNext(e.programs);
+      if (!info || !info.now) return;
+      shown++;
+
+      var row = document.createElement('div');
+      row.className = 'guide-row';
+
+      var lg = document.createElement('div');
+      lg.className = 'guide-logo';
+      if (c.logo && /^https?:\/\//i.test(c.logo)) {
+        var im = document.createElement('img');
+        im.src = c.logo; im.alt = '';
+        im.onerror = function () { this.replaceWith(txtGuideLogo(c.name)); };
+        lg.appendChild(im);
+      } else {
+        lg.appendChild(txtGuideLogo(c.name));
+      }
+
+      var body = document.createElement('div');
+      body.className = 'guide-body';
+      var nm = document.createElement('div'); nm.className = 'guide-name'; nm.textContent = c.name;
+      var nowD = document.createElement('div'); nowD.className = 'guide-now';
+      nowD.innerHTML = '<b>En ce moment :</b> ' + esc(info.now.title);
+      var bar = document.createElement('div'); bar.className = 'epg-bar';
+      var f = document.createElement('span'); f.style.width = info.pct + '%'; bar.appendChild(f);
+      body.appendChild(nm); body.appendChild(nowD); body.appendChild(bar);
+      if (info.next && info.next.title) {
+        var nx = document.createElement('div'); nx.className = 'guide-next';
+        nx.innerHTML = '<b>À suivre :</b> ' + esc(info.next.title);
+        body.appendChild(nx);
+      }
+      row.appendChild(lg);
+      row.appendChild(body);
+      row.addEventListener('click', function () { closeGuide(); if (window.__dpiptv) window.__dpiptv.play(c); });
+      listEl.appendChild(row);
+    });
+
+    if (!shown) {
+      var m2 = document.createElement('div');
+      m2.className = 'guide-empty';
+      m2.textContent = "Aucune chaîne de cette playlist n'a de guide disponible pour l'instant.";
+      listEl.appendChild(m2);
+    }
+  }
+
+  function openGuide() {
+    guideOverlayOpen = true;
+    guideOverlay.classList.add('visible');
+    if (!guideAvailable) fetchGuide();
+    renderGuide();
+  }
+  function closeGuide() {
+    guideOverlayOpen = false;
+    guideOverlay.classList.remove('visible');
+  }
+
+  var guideBtn = document.getElementById('guide-btn');
+  if (guideBtn) guideBtn.addEventListener('click', openGuide);
+  document.getElementById('guide-close').addEventListener('click', closeGuide);
+  document.getElementById('guide-retry').addEventListener('click', function () { fetchGuide().then(renderGuide); });
+  guideOverlay.addEventListener('click', function (e) { if (e.target === guideOverlay) closeGuide(); });
+
+  var navHome = document.getElementById('nav-home');
+  if (navHome) navHome.addEventListener('click', function () {
+    closeGuide();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  /* ---------------- Init & periodic EPG refresh ---------------- */
+  fetchGuide();
+  // Keep progress bars / now-playing labels fresh over time.
+  setInterval(function () {
+    if (guideAvailable) {
+      refreshAllEpg();
+      if (guideOverlayOpen) renderGuide();
+    }
+  }, 60000);
+})();
+</script>
+
+<nav class="glass-nav" id="glass-nav">
+  <button data-act="home" class="active" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg></span>Accueil</button>
+  <button data-act="guide" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3M7 13h4M7 16.5h7"/></svg></span>Guide</button>
+  <button data-act="search" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span>Rechercher</button>
+  <button data-act="links" class="admin-only" type="button">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></span>Mes liens</button>
+</nav>
+
+<div id="profile-overlay" class="profile-overlay">
+  <div class="profile-inner">
+    <h1 class="profile-h">Qui regarde&nbsp;?</h1>
+    <div id="profile-grid" class="profile-grid"></div>
+    <button id="profile-manage" class="profile-manage" type="button">Gérer les profils</button>
+  </div>
+</div>
+
+<script>
+/* Barre flottante Liquid Glass — pilote les boutons existants (100% additif). */
+(function () {
+  var nav = document.getElementById('glass-nav');
+  if (!nav) return;
+  function setActive(btn) {
+    var bs = nav.querySelectorAll('button');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('active', bs[i] === btn);
+  }
+  function clickId(id) { var el = document.getElementById(id); if (el) el.click(); }
+  nav.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('button') : null;
+    if (!btn) return;
+    var act = btn.getAttribute('data-act');
+    if (act === 'home') {
+      clickId('nav-home');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (act === 'guide') {
+      clickId('guide-btn');
+    } else if (act === 'search') {
+      var s = document.getElementById('search');
+      if (s) { s.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { s.focus(); }, 300); }
+    } else if (act === 'links') {
+      clickId('sources-btn');
+    }
+    setActive(btn);
+  });
+})();
+</script>
+</body>
+</html>
