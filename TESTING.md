@@ -117,6 +117,16 @@ Tout est stocké sur l'appareil (localStorage) et persiste après rechargement ;
 
 Chaque chaîne a un petit bouton **✕** pour la retirer des listes (par ex. les chaînes mortes, en double, ou qui ne t'intéressent pas). C'est masqué, pas supprimé du repo : un bandeau propose **↩ Annuler** juste après, et **⚙️ → 👁 Réafficher les chaînes masquées (N)** les ramène toutes. Le masquage est stocké par appareil (localStorage) et s'applique aussi à la recherche 🌍.
 
+### Lecture qui rame (lag / buffering)
+
+Côté **lecteur web**, les buffers sont réglés large (30 s d'avance, pas de « rattrapage live » agressif) et un indicateur **⏳ mise en mémoire tampon** distingue « ça charge » de « c'est figé » ; le panneau 🐞 Diagnostic journalise chaque stall et la durée de reprise.
+
+Côté **VLC** (là où le lag vient surtout du réseau et de la distance au serveur) :
+- Le fichier `.m3u` téléchargé par le bouton VLC embarque déjà `network-caching=5000` (5 s de cache) et `http-reconnect=true` → VLC buffère et se reconnecte automatiquement.
+- Réglage manuel équivalent : VLC → *Réglages → Afficher tous → Entrée/Codecs → Mise en cache réseau* → **5000 ms**.
+
+> La cause n°1 de lag reste le **proxy public** (corsproxy.io) quand une chaîne y transite : déploie ton **propre Cloudflare Worker** (`proxy-worker.js`) pour un flux rapide et non partagé. Et un serveur source lointain/saturé lague quel que soit le lecteur.
+
 ### Diagnostic (🐞 logs de lecture)
 
 Le panneau **⚙️ → 🐞 Diagnostic** affiche, à l'écran, le journal de la dernière lecture : format détecté, moteur utilisé, proxy oui/non, événements de succès/échec, code HTTP et une **sonde réseau** qui distingue un hôte mort d'un blocage CORS / mixed-content. Lance une chaîne, rouvre le panneau, lis (ou « Copier les logs » pour partager le texte). Utile pour comprendre un **écran noir** : le journal dit si le flux a chargé, échoué, ou été bloqué par le navigateur.
