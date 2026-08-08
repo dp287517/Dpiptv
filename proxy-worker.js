@@ -14,11 +14,25 @@
  *   4. Dans player.html → ⚙️ → colle : https://dpiptv-proxy.<ton-compte>.workers.dev/?url={url}
  *
  * Usage : GET https://<worker>/?url=<URL du flux encodée>
+ *
+ * Synchro des profils (optionnel) :
+ *   Ajoute un espace KV nommé DPIPTV_SYNC (Workers & Pages → ton worker →
+ *   Settings → Variables → KV Namespace Bindings → Variable name: DPIPTV_SYNC).
+ *   Endpoints alors disponibles :
+ *     GET  /sync?code=<code>  → { updatedAt, payload }   (dernier état stocké)
+ *     PUT  /sync?code=<code>  body=JSON → { updatedAt }   (horodaté côté serveur)
+ *   Le serveur est l'unique horloge (pas de dérive entre appareils).
  */
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const reqUrl = new URL(request.url)
+
+    // ---- Synchro cloud des profils (KV) ----
+    if (reqUrl.pathname === '/sync') {
+      return handleSync(request, env, reqUrl)
+    }
+
     const target = reqUrl.searchParams.get('url')
     if (!target) return textResponse('Missing ?url= parameter', 400)
 
@@ -87,6 +101,59 @@ export default {
     }
     return new Response(upstream.body, { status: upstream.status, headers })
   }
+}
+
+// Synchro des profils : stockage KV clé par « code famille ».
+// Le serveur horodate chaque écriture → une seule horloge, zéro dérive entre appareils.
+async function handleSync(request, env, reqUrl) {
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: syncHeaders() })
+  }
+  if (!env || !env.DPIPTV_SYNC) {
+    return jsonResponse({ error: 'KV non configuré. Lie un namespace KV nommé DPIPTV_SYNC au worker.' }, 501)
+  }
+  const code = (reqUrl.searchParams.get('code') || '').trim()
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(code)) {
+    return jsonResponse({ error: 'Code invalide (4 à 64 caractères : lettres, chiffres, - _).' }, 400)
+  }
+  const key = 'sync:' + code
+
+  if (request.method === 'GET') {
+    const raw = await env.DPIPTV_SYNC.get(key)
+    if (!raw) return jsonResponse({ updatedAt: 0, payload: null })
+    return new Response(raw, { status: 200, headers: syncHeaders('application/json') })
+  }
+
+  if (request.method === 'PUT' || request.method === 'POST') {
+    let payload
+    try {
+      payload = await request.json()
+    } catch {
+      return jsonResponse({ error: 'JSON invalide' }, 400)
+    }
+    const updatedAt = Date.now()
+    const record = JSON.stringify({ updatedAt, payload })
+    if (record.length > 512 * 1024) return jsonResponse({ error: 'Payload trop volumineux' }, 413)
+    await env.DPIPTV_SYNC.put(key, record)
+    return jsonResponse({ updatedAt })
+  }
+
+  return jsonResponse({ error: 'Méthode non autorisée' }, 405)
+}
+
+function syncHeaders(contentType) {
+  const h = new Headers({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, PUT, POST, OPTIONS',
+    'Access-Control-Allow-Headers': '*',
+    'Cache-Control': 'no-store'
+  })
+  if (contentType) h.set('Content-Type', contentType)
+  return h
+}
+
+function jsonResponse(obj, status) {
+  return new Response(JSON.stringify(obj), { status: status || 200, headers: syncHeaders('application/json') })
 }
 
 function abs(u, base) {
