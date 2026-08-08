@@ -1215,8 +1215,20 @@
 
   var globalMode = false;
   var globalIndex = null;
+  var globalPartial = null;                 // index array in cours de construction (recherche en direct)
+  var globalProgress = { done: 0, total: 0 };
   var globalLoadingPromise = null;
   var MAX_GLOBAL_RESULTS = 400;
+
+  // Re-render throttlé pendant l'indexation mondiale → les résultats apparaissent en direct.
+  var liveRenderTimer = null;
+  function scheduleLiveRender() {
+    if (liveRenderTimer) return;
+    liveRenderTimer = setTimeout(function () {
+      liveRenderTimer = null;
+      if (globalMode && searchEl.value && searchEl.value.length >= 2) render(searchEl.value);
+    }, 350);
+  }
 
   function loadGlobalIndex() {
     if (globalLoadingPromise) return globalLoadingPromise;
@@ -1231,6 +1243,8 @@
           .filter(function (f) { return /\.m3u$/.test(f.name); })
           .map(function (f) { return f.name.replace(/\.m3u$/, ''); });
         var idx = [];
+        globalPartial = idx;                        // exposé pour la recherche en direct
+        globalProgress = { done: 0, total: names.length };
         var done = 0, i = 0, active = 0, CONC = 12;
         return new Promise(function (resolve) {
           function next() {
@@ -1246,7 +1260,12 @@
                       parseM3U(text).forEach(function (ch) { ch.src = code; idx.push(ch); });
                     }
                     done++; active--;
-                    countEl.textContent = 'Indexation mondiale : ' + done + ' / ' + names.length + ' playlists…';
+                    globalProgress.done = done;
+                    // Ne pas écraser le compteur de résultats si l'utilisateur cherche déjà.
+                    if (!(globalMode && searchEl.value && searchEl.value.length >= 2)) {
+                      countEl.textContent = 'Indexation mondiale : ' + done + ' / ' + names.length + ' playlists…';
+                    }
+                    scheduleLiveRender();
                     next();
                   });
               })(names[i++]);
@@ -1289,17 +1308,28 @@
 
     var source, truncated = false;
     if (globalMode) {
-      if (!globalIndex) {
-        emptyEl.style.display = 'none';
-        return; // progress is shown in countEl by loadGlobalIndex
-      }
+      var indexing = !globalIndex; // index mondial encore en construction
       if (q.length < 2) {
-        countEl.textContent = globalIndex.length + ' chaînes indexées (tous pays) — tape au moins 2 lettres';
+        // Pas encore de terme : afficher la progression ou l'invite « tape 2 lettres ».
+        if (!indexing) {
+          countEl.textContent = globalIndex.length + ' chaînes indexées (tous pays) — tape au moins 2 lettres';
+        }
         emptyEl.style.display = 'none';
         return;
       }
-      source = globalIndex.filter(function (ch) {
+      // Recherche en DIRECT : d'abord la playlist courante (instantané), puis l'index
+      // mondial (complet ou partiel pendant l'indexation), en dédupliquant par URL.
+      var pool = globalIndex || globalPartial || [];
+      var seen = {};
+      source = [];
+      function matches(ch) {
         return !hidden[ch.url] && (ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0);
+      }
+      channels.forEach(function (ch) {
+        if (matches(ch) && !seen[ch.url]) { seen[ch.url] = 1; source.push(ch); }
+      });
+      pool.forEach(function (ch) {
+        if (matches(ch) && !seen[ch.url]) { seen[ch.url] = 1; source.push(ch); }
       });
       if (source.length > MAX_GLOBAL_RESULTS) {
         source = source.slice(0, MAX_GLOBAL_RESULTS);
@@ -1393,9 +1423,16 @@
       channelsEl.appendChild(li);
     });
     if (globalMode) {
-      countEl.textContent = shown + (truncated ? '+' : '') + ' résultat(s) sur ' + globalIndex.length +
-        ' chaînes (tous pays)' + (truncated ? ' — affine la recherche' : '');
-      emptyEl.style.display = shown ? 'none' : 'block';
+      if (!globalIndex) {
+        // Indexation en cours : afficher ce qu'on a déjà + progression, sans « aucun résultat ».
+        countEl.textContent = shown + (truncated ? '+' : '') + ' résultat(s) — indexation mondiale ' +
+          globalProgress.done + ' / ' + globalProgress.total + '…';
+        emptyEl.style.display = 'none';
+      } else {
+        countEl.textContent = shown + (truncated ? '+' : '') + ' résultat(s) sur ' + globalIndex.length +
+          ' chaînes (tous pays)' + (truncated ? ' — affine la recherche' : '');
+        emptyEl.style.display = shown ? 'none' : 'block';
+      }
     } else {
       countEl.textContent = channels.length ? shown + ' / ' + channels.length + ' chaînes' : '';
       emptyEl.style.display = channels.length && !shown ? 'block' : 'none';
