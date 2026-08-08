@@ -6,7 +6,7 @@ on:
     inputs:
       sites:
         description: 'Sites EPG à grabber (séparés par des virgules)'
-        default: 'programme-tv.net,sporttv.pt'
+        default: 'meo.pt,programme-tv.net,sporttv.pt'
   schedule:
     - cron: '35 4 * * *' # tous les jours ~04:35 UTC
 permissions:
@@ -15,7 +15,7 @@ concurrency:
   group: epg-guide
   cancel-in-progress: true
 env:
-  SITES: ${{ github.event.inputs.sites || 'programme-tv.net,sporttv.pt' }}
+  SITES: ${{ github.event.inputs.sites || 'meo.pt,programme-tv.net,sporttv.pt' }}
 jobs:
   build:
     runs-on: ubuntu-latest

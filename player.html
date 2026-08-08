@@ -1177,9 +1177,17 @@
         '#Intent;scheme=' + scheme + ';type=video/*;package=org.videolan.vlc;end';
       return;
     }
-    // Desktop: download a tiny .m3u playlist that VLC opens on double-click.
-    // Embed VLC options so it buffers generously (5s) and reconnects on drops —
-    // the main cure for laggy IPTV streams, applied automatically.
+    // Desktop (Mac/PC) : VLC ne gère pas le schéma vlc://. Plutôt qu'un
+    // téléchargement surprise, on COPIE le lien et on montre les 3 étapes.
+    // Le fichier .m3u reste dispo en bouton (double-clic → VLC) pour ceux qui préfèrent.
+    copyText(url, true);
+    setStatus('info',
+      '▶ <b>Lien copié ✔</b> — pour le lire dans VLC (Mac/PC) :<br>' +
+      '1. Ouvre <b>VLC</b> &nbsp; 2. Menu <b>Fichier → Ouvrir un flux réseau…</b> (⌘N sur Mac, Ctrl+N sur PC) &nbsp; 3. <b>Colle</b> (⌘V) et clique <b>Ouvrir</b>.',
+      [makeM3uBtn(url, name)]);
+  }
+  // Fichier .m3u (avec options VLC anti-lag) — ouvre VLC au double-clic.
+  function downloadM3u(url, name) {
     var m3u = '#EXTM3U\n#EXTINF:-1,' + (name || 'Flux') + '\n' +
       '#EXTVLCOPT:network-caching=5000\n' +
       '#EXTVLCOPT:http-reconnect=true\n' +
@@ -1189,14 +1197,16 @@
     var a = document.createElement('a');
     a.href = href;
     a.download = ((name || 'stream').replace(/[^\w.\- ]+/g, '_').trim() || 'stream') + '.m3u';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(href); }, 15000);
-    copyText(url, true);
-    setStatus('info',
-      '⬇️ Fichier <b>.m3u</b> téléchargé — <b>double-clique dessus</b> pour l’ouvrir dans VLC. ' +
-      'Le lien est aussi copié : dans VLC, <b>Fichier → Ouvrir un flux réseau</b> (⌘N), colle-le.');
+    setStatus('info', '⬇️ Fichier <b>.m3u</b> téléchargé — <b>double-clique dessus</b> pour l’ouvrir dans VLC.');
+  }
+  function makeM3uBtn(url, name) {
+    var b = document.createElement('button');
+    b.className = 'action-btn';
+    b.textContent = '⬇️ Ou télécharger le .m3u (double-clic → VLC)';
+    b.addEventListener('click', function (e) { e.stopPropagation(); downloadM3u(url, name); });
+    return b;
   }
 
   function makeVlcLink(url, name, label) {
