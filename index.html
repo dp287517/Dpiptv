@@ -628,6 +628,34 @@
   #player-close svg { width: 18px; height: 18px; }
   #player-close:hover { background: rgba(60,60,72,.7); }
 
+  /* Outils du lecteur : PiP / AirPlay / Cast / Sommeil */
+  #player-tools { position: absolute; top: 10px; left: 10px; z-index: 5; display: flex; gap: 8px; }
+  .pt-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd); box-shadow: var(--glass-hi), 0 3px 12px rgba(0,0,0,.5);
+    color: #fff; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .pt-btn svg { width: 19px; height: 19px; }
+  .pt-btn:hover { background: rgba(60,60,72,.7); }
+  .pt-btn.on { background: var(--accent); border-color: transparent; }
+  .sleep-menu {
+    position: absolute; top: 54px; left: 10px; z-index: 6; display: none; flex-direction: column;
+    background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd); border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  .sleep-menu.open { display: flex; }
+  .sleep-menu button { background: none; border: none; color: #fff; padding: 10px 16px; font-size: .85rem; text-align: left; cursor: pointer; white-space: nowrap; }
+  .sleep-menu button:hover { background: rgba(255,255,255,.1); }
+  .zap-hint {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    background: rgba(0,0,0,.72); color: #fff; padding: 10px 18px; border-radius: 12px;
+    font-size: .95rem; font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 6;
+  }
+  .zap-hint.show { opacity: 1; }
+
   /* Croix de suppression + puce « Mes liens » réservées admin */
   body.guest .mini-btn.hide { display: none !important; }
 
@@ -704,6 +732,14 @@
   .g-thumb img { max-width: 72%; max-height: 66%; object-fit: contain; }
   .g-thumb .guide-logo-fb { font-weight: 800; font-size: 1.5rem; color: #fff; }
   .g-live { position: absolute; top: 6px; left: 6px; font-size: .58rem; font-weight: 800; letter-spacing: .04em; background: var(--err); color: #fff; padding: 2px 6px; border-radius: 6px; }
+  .g-bell {
+    position: absolute; top: 5px; right: 5px; width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: .8rem; line-height: 1;
+    background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.18); color: #fff; cursor: pointer;
+    opacity: .55; transition: opacity .15s, background .15s;
+  }
+  .g-bell:hover { opacity: 1; }
+  .g-bell.on { opacity: 1; background: var(--accent); border-color: transparent; }
   .g-body { padding: 8px 10px 10px; }
   .g-ch { font-size: .82rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .g-prog { font-size: .75rem; color: #cfe0ff; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -748,7 +784,15 @@
 
 <div class="player-wrap" id="player-wrap">
   <button id="player-close" title="Fermer le lecteur" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-  <video id="video" controls playsinline autoplay></video>
+  <div id="player-tools">
+    <button id="pt-pip" class="pt-btn" type="button" title="Mini-lecteur (Picture-in-Picture)" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="2"/><rect x="12" y="11" width="7" height="5" rx="1" fill="currentColor"/></svg></button>
+    <button id="pt-airplay" class="pt-btn" type="button" title="AirPlay (Apple TV / Mac)" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-2"/><path d="M12 15l5 6H7l5-6z" fill="currentColor"/></svg></button>
+    <button id="pt-cast" class="pt-btn" type="button" title="Caster sur la TV (Chromecast)" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8V5a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-7"/><path d="M2 12a6 6 0 0 1 6 6M2 16a2 2 0 0 1 2 2"/><path d="M2 20h.01"/></svg></button>
+    <button id="pt-sleep" class="pt-btn" type="button" title="Minuterie de sommeil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg></button>
+  </div>
+  <div id="sleep-menu" class="sleep-menu"></div>
+  <video id="video" controls playsinline autoplay x-webkit-airplay="allow"></video>
+  <div id="zap-hint" class="zap-hint"></div>
 </div>
 <div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span><button id="switch-src" type="button" title="Essayer une autre source (si ça rame ou ne marche pas)" style="display:none">↻ Source</button><span id="buf">⏳ mise en mémoire tampon…</span></div>
 <div id="status"></div>
@@ -2456,6 +2500,145 @@
     });
   });
 
+  /* ---------------- Outils lecteur : PiP · AirPlay · Cast · Sommeil · Zapping ---------------- */
+  var zapHint = document.getElementById('zap-hint');
+  var zapHintTimer = null;
+  function showZapHint(txt) {
+    if (!zapHint) return;
+    zapHint.textContent = txt; zapHint.classList.add('show');
+    clearTimeout(zapHintTimer); zapHintTimer = setTimeout(function () { zapHint.classList.remove('show'); }, 1200);
+  }
+  // Zapping : chaîne suivante/précédente dans la playlist courante (hors masquées).
+  function zap(delta) {
+    if (!currentPlaying) return;
+    var list = [];
+    for (var k = 0; k < channels.length; k++) if (!hidden[channels[k].url]) list.push(channels[k]);
+    if (!list.length) return;
+    var ci = -1;
+    for (var j = 0; j < list.length; j++) {
+      if ((currentPlaying.id && list[j].id === currentPlaying.id) || list[j].url === currentPlaying.url) { ci = j; break; }
+    }
+    if (ci < 0) return;
+    var next = list[(ci + delta + list.length) % list.length];
+    showZapHint((delta > 0 ? '▲ ' : '▼ ') + next.name);
+    startPlay(next, null);
+  }
+  // Swipe vertical sur le lecteur → zapping.
+  var pwEl = document.getElementById('player-wrap');
+  if (pwEl) {
+    var tsY = null, tsX = null, tsT = 0;
+    pwEl.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) { tsY = null; return; }
+      tsY = e.touches[0].clientY; tsX = e.touches[0].clientX; tsT = Date.now();
+    }, { passive: true });
+    pwEl.addEventListener('touchend', function (e) {
+      if (tsY == null) return;
+      var t = e.changedTouches[0], dy = t.clientY - tsY, dx = t.clientX - tsX; tsY = null;
+      if (Date.now() - tsT > 800) return;
+      if (Math.abs(dy) > 70 && Math.abs(dy) > Math.abs(dx) * 1.6) zap(dy < 0 ? 1 : -1);
+    }, { passive: true });
+  }
+  // Clavier (bureau) : ↑ suivante, ↓ précédente.
+  document.addEventListener('keydown', function (e) {
+    if (!document.body.classList.contains('playing')) return;
+    if (e.target && /input|textarea|select/i.test(e.target.tagName || '')) return;
+    if (e.key === 'ArrowUp') { zap(1); e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { zap(-1); e.preventDefault(); }
+  });
+
+  // Picture-in-Picture (mini-lecteur).
+  var pipBtn = document.getElementById('pt-pip');
+  if (pipBtn && (document.pictureInPictureEnabled || video.webkitSupportsPresentationMode)) {
+    pipBtn.style.display = 'flex';
+    pipBtn.addEventListener('click', function () {
+      try {
+        if (video.webkitSetPresentationMode) {
+          video.webkitSetPresentationMode(video.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture');
+        } else if (document.pictureInPictureElement) { document.exitPictureInPicture(); }
+        else { video.requestPictureInPicture(); }
+      } catch (e) {}
+    });
+  }
+
+  // AirPlay (Safari / appareils Apple) — bouton visible seulement si une cible existe.
+  var apBtn = document.getElementById('pt-airplay');
+  if (apBtn && window.WebKitPlaybackTargetAvailabilityEvent) {
+    video.addEventListener('webkitplaybacktargetavailabilitychanged', function (ev) {
+      apBtn.style.display = (ev.availability === 'available') ? 'flex' : 'none';
+    });
+    apBtn.addEventListener('click', function () { try { video.webkitShowPlaybackTargetPicker(); } catch (e) {} });
+  }
+
+  // Minuterie de sommeil.
+  var sleepBtn = document.getElementById('pt-sleep');
+  var sleepMenu = document.getElementById('sleep-menu');
+  var sleepTimer = null;
+  function setSleep(mins) {
+    if (sleepTimer) { clearTimeout(sleepTimer); sleepTimer = null; }
+    sleepBtn.classList.remove('on');
+    if (mins > 0) {
+      sleepTimer = setTimeout(function () {
+        stopPlayback(); markPlaying(null); nowPlayingEl.classList.remove('visible');
+        document.body.classList.remove('playing'); sleepBtn.classList.remove('on');
+        setStatus('info', '😴 Minuterie de sommeil : lecture arrêtée.');
+      }, mins * 60000);
+      sleepBtn.classList.add('on');
+      setStatus('info', '😴 Minuterie réglée : arrêt dans ' + mins + ' min.');
+    } else { setStatus('info', 'Minuterie de sommeil annulée.'); }
+    if (sleepMenu) sleepMenu.classList.remove('open');
+  }
+  if (sleepBtn && sleepMenu) {
+    [['15', '15 min'], ['30', '30 min'], ['60', '1 heure'], ['90', '1 h 30'], ['0', '✕ Annuler']].forEach(function (o) {
+      var b = document.createElement('button'); b.textContent = o[1];
+      b.addEventListener('click', function (e) { e.stopPropagation(); setSleep(+o[0]); });
+      sleepMenu.appendChild(b);
+    });
+    sleepBtn.addEventListener('click', function (e) { e.stopPropagation(); sleepMenu.classList.toggle('open'); });
+    document.addEventListener('click', function (e) {
+      if (sleepMenu && !sleepMenu.contains(e.target) && e.target !== sleepBtn) sleepMenu.classList.remove('open');
+    });
+  }
+
+  // Chromecast (SDK chargé à la demande). Caste l'URL directe (l'appareil récupère le flux lui-même).
+  var castBtn = document.getElementById('pt-cast');
+  var castContext = null;
+  function castCurrent() {
+    if (!castContext || !currentPlaying) return;
+    castContext.requestSession().then(function () {
+      var session = castContext.getCurrentSession(); if (!session) return;
+      var url = currentPlaying.url, kind = detectKind(url);
+      var ct = kind === 'dash' ? 'application/dash+xml' : (kind === 'hls' ? 'application/x-mpegURL' : (kind === 'mpegts' ? 'video/mp2t' : 'video/mp4'));
+      var info = new chrome.cast.media.MediaInfo(url, ct);
+      info.metadata = new chrome.cast.media.GenericMediaMetadata();
+      info.metadata.title = currentPlaying.name || 'Dpiptv';
+      session.loadMedia(new chrome.cast.media.LoadRequest(info))
+        .then(function () { setStatus('info', '📺 Envoyé sur la TV : ' + escapeHtml(currentPlaying.name || '') + '.'); },
+              function () { setStatus('warn', 'Cast : le Chromecast ne sait pas lire cette chaîne (format non supporté par la TV).'); });
+    }, function () {});
+  }
+  window.__onGCastApiAvailable = function (available) {
+    if (!available || !castBtn) return;
+    try {
+      castContext = cast.framework.CastContext.getInstance();
+      castContext.setOptions({
+        receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+        autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+      });
+      castContext.addEventListener(cast.framework.CastContextEventType.CAST_STATE_CHANGED, function (ev) {
+        castBtn.style.display = (ev.castState === cast.framework.CastState.NO_DEVICES_AVAILABLE) ? 'none' : 'flex';
+        castBtn.classList.toggle('on', ev.castState === cast.framework.CastState.CONNECTED);
+      });
+      castBtn.addEventListener('click', castCurrent);
+    } catch (e) {}
+  };
+  (function loadCastSdk() {
+    // Uniquement sur Chrome/Android/desktop Chrome (le SDK s'auto-désactive ailleurs).
+    var s = document.createElement('script');
+    s.src = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
+    s.async = true; s.onerror = function () {};
+    document.head.appendChild(s);
+  })();
+
   var switchSrcBtn = document.getElementById('switch-src');
   if (switchSrcBtn) switchSrcBtn.addEventListener('click', function () {
     if (!currentPlaying) return;
@@ -2962,6 +3145,41 @@
     catch (e) { return []; }
   }
 
+  /* ---------------- Rappels de programme (EPG + notifications) ----------------
+     « Préviens-moi quand ça commence » : stocke des rappels et déclenche une
+     notification ~1 min avant le début. NB : ne se déclenche que tant que l'appli
+     est ouverte (pas de serveur push). */
+  function remKey(chId, start) { return chId + '|' + start; }
+  function readReminders() { try { return JSON.parse(localStorage.getItem('dpiptv.reminders') || '[]') || []; } catch (e) { return []; } }
+  function writeReminders(list) { try { localStorage.setItem('dpiptv.reminders', JSON.stringify(list)); } catch (e) {} }
+  function hasReminder(chId, start) { var k = remKey(chId, start); return readReminders().some(function (r) { return r.k === k; }); }
+  function toggleReminder(gc, prog) {
+    var list = readReminders(), k = remKey(gc.id, prog.start), i = -1;
+    for (var j = 0; j < list.length; j++) if (list[j].k === k) { i = j; break; }
+    if (i >= 0) { list.splice(i, 1); writeReminders(list); return false; }
+    try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
+    list.push({ k: k, chId: gc.id, chName: gc.name, title: prog.title || '', start: prog.start });
+    writeReminders(list);
+    return true;
+  }
+  function fireReminder(r) {
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        var n = new Notification('▶ Ça commence : ' + (r.title || 'programme'), { body: 'Sur ' + r.chName + ' — regarde sur Dpiptv', tag: r.k });
+        n.onclick = function () { try { window.focus(); } catch (e) {} var l = findLoaded(r.chId); if (l && window.__dpiptv) window.__dpiptv.play(l); n.close(); };
+      }
+    } catch (e) {}
+  }
+  setInterval(function () {
+    var list = readReminders(); if (!list.length) return;
+    var now = Date.now(), keep = [], changed = false;
+    list.forEach(function (r) {
+      if (now >= r.start - 60000) { if (now < r.start + 300000) fireReminder(r); changed = true; }
+      else keep.push(r);
+    });
+    if (changed) writeReminders(keep);
+  }, 30000);
+
   /* ---------- Sélecteur de jour ---------- */
   function renderDays() {
     var el = document.getElementById('guide-days');
@@ -3015,6 +3233,23 @@
     if (cat && cat.color) card.style.setProperty('--r-accent', cat.color);
     var thumb = guideLogoNode(gc); thumb.className = 'g-thumb';
     if (d && d.isNow) { var live = document.createElement('span'); live.className = 'g-live'; live.textContent = 'EN DIRECT'; thumb.appendChild(live); }
+    // Rappel sur le prochain programme (à venir).
+    var remProg = (d && d.isNow && d.next) ? d.next : (d && d.prog && d.prog.start > Date.now() ? d.prog : null);
+    if (remProg && remProg.title) {
+      var bell = document.createElement('button');
+      bell.className = 'g-bell' + (hasReminder(gc.id, remProg.start) ? ' on' : '');
+      bell.type = 'button'; bell.textContent = '🔔';
+      bell.title = 'Me rappeler : ' + remProg.title;
+      bell.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var on = toggleReminder(gc, remProg);
+        bell.classList.toggle('on', on);
+        if (on && 'Notification' in window && Notification.permission === 'denied') {
+          alert('Pour recevoir les rappels, autorise les notifications de ce site dans ton navigateur.');
+        }
+      });
+      thumb.appendChild(bell);
+    }
     card.appendChild(thumb);
     var body = document.createElement('div'); body.className = 'g-body';
     var ch = document.createElement('div'); ch.className = 'g-ch'; ch.textContent = gc.name; body.appendChild(ch);
