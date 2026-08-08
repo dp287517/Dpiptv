@@ -571,6 +571,7 @@
     font-size: .85rem; cursor: pointer; font-weight: 600;
     -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   }
+  .profile-manage.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 55%, transparent); }
   /* Favorite star on cards */
   .card-fav {
     background: none; border: none; cursor: pointer; color: var(--muted);
@@ -2953,6 +2954,7 @@
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
       <button id="profile-manage" class="profile-manage" type="button">Gérer les profils</button>
       <button id="profile-import" class="profile-manage" type="button">⤵ Importer mes profils</button>
+      <button id="profile-reset" class="profile-manage danger" type="button">🗑 Tout réinitialiser</button>
     </div>
   </div>
 </div>
@@ -3225,6 +3227,19 @@
   if (manageBtn) manageBtn.addEventListener('click', function () {
     var on = profileOverlay.classList.toggle('managing');
     this.textContent = on ? 'Terminé' : 'Gérer les profils';
+  });
+
+  // Tout réinitialiser : efface tous les profils + leurs favoris/récent sur CET appareil.
+  var resetBtn = document.getElementById('profile-reset');
+  if (resetBtn) resetBtn.addEventListener('click', function () {
+    var profs = readProfiles();
+    if (!profs.length) { alert('Aucun profil à réinitialiser.'); return; }
+    if (!confirm('Supprimer TOUS les profils de cet appareil (' + profs.length + ') et leurs favoris/récent ? Cette action est définitive sur ce téléphone.')) return;
+    profs.forEach(function (p) {
+      try { localStorage.removeItem('dpiptv.fav.' + p.id); localStorage.removeItem('dpiptv.recent.' + p.id); } catch (e) {}
+    });
+    try { localStorage.removeItem('dpiptv.profiles'); localStorage.removeItem('dpiptv.currentProfile'); } catch (e) {}
+    location.reload();
   });
 
   // Importer ses profils depuis un autre appareil (accessible dès l'écran « Qui regarde ? »).
