@@ -3322,6 +3322,9 @@
     try {
       addStarsToCards();
       injectFavRail();
+      // Applique les vrais logos à TOUTES les cartes après chaque rendu
+      // (favoris + rails + récent), pas seulement au chargement de logos.json.
+      if (window.__dpLogo && window.__dpLogo.applyToCards) window.__dpLogo.applyToCards();
     } catch (e) {}
   };
 
