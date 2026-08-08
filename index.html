@@ -609,6 +609,50 @@
 
   /* Rail Favoris : accent doré */
   .rail.fav .rail-title::before { background: linear-gradient(180deg, #f5c518, #c99700); }
+
+  /* ============ Logos réels + icônes catégorie ============ */
+  .logo-fallback.cat-fallback, .guide-logo-fb.cat-fallback { color: var(--muted); }
+  .logo-fallback.cat-fallback svg { width: 46%; height: 46%; }
+  .guide-logo-fb.cat-fallback svg { width: 62%; height: 62%; }
+  .logo-fallback.emoji-fallback { font-size: 2rem; }
+
+  /* ============ Guide repensé ============ */
+  .guide-top {
+    position: sticky; top: 0; z-index: 4;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 4px 0 10px;
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(30px);
+    backdrop-filter: saturate(180%) blur(30px);
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  #guide-search { width: 100%; }
+  .guide-days { display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .guide-days::-webkit-scrollbar { display: none; }
+  .gd-btn {
+    flex: none; padding: 7px 13px; border-radius: 999px;
+    background: var(--glass); border: 1px solid var(--glass-brd);
+    color: var(--text); font-size: .8rem; cursor: pointer; white-space: nowrap;
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  }
+  .gd-btn:hover { background: var(--surface3); }
+  .gd-btn.active { background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
+  .gd-sep { flex: none; align-self: stretch; width: 1px; background: var(--surface3); margin: 3px 2px; }
+  .guide-sec { margin-top: 16px; }
+  .guide-sec-h { font-size: .96rem; font-weight: 700; color: #fff; margin-bottom: 9px; }
+  .gfi {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 8px 11px; background: var(--surface2); border: 1px solid var(--surface3);
+    border-radius: 10px; margin-bottom: 6px; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .gfi:hover { border-color: var(--accent); background: var(--surface3); }
+  .gfi-time { flex: none; font-weight: 700; color: var(--accent); font-size: .8rem; min-width: 46px; }
+  .gfi-body { flex: 1; min-width: 0; }
+  .gfi-title { color: #fff; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gfi-chan { color: var(--muted); font-size: .74rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .guide-when { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+  .guide-when b { color: #cfe0ff; font-weight: 600; }
 </style>
 </head>
 <body class="guest">
@@ -747,6 +791,176 @@
     </div>
   </div>
 </div>
+
+<script>
+/* ============================================================
+   DPIPTV — logos réels (logos.json) + icônes catégorie en repli.
+   Chargé AVANT le moteur pour que render() puisse s'en servir.
+   Partagé via window.__dpLogo. 100% non bloquant.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var map = null;          // logos.json en cache mémoire (id -> url)
+  var norm = null;         // index base-id (avant @) -> url, matching tolérant
+  var loaded = false;
+  var loading = null;
+
+  function baseId(id) { return String(id == null ? '' : id).split('@')[0]; }
+  function isUrl(s) { return !!s && /^https?:\/\//i.test(s); }
+
+  // Icônes trait fin (stroke=currentColor) façon toolbar, une par catégorie.
+  var ICONS = {
+    sport: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5l3.8 2.8-1.5 4.5h-4.6l-1.5-4.5z"/><path d="M12 3v4.5M20.5 10l-4.2 3M17.8 19l-3.5-3.7M6.2 19l3.5-3.7M3.5 10l4.2 3"/></svg>',
+    cine: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 8.5l1.5-4 3.6.9-1.5 4M8.7 5.4l3.6.9-1.5 4M14 6.3l3.6.9-1.5 4"/></svg>',
+    news: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M17 8.5h3v9.5a1.5 1.5 0 0 1-3 0z"/><path d="M7 8.5h7M7 12h7M7 15.5h4"/></svg>',
+    kids: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>',
+    music: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>',
+    doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+    tv: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 3.5l4 3.5 4-3.5"/></svg>'
+  };
+  var CATS = [
+    { key: 'sport', re: /sport|foot|futbol|calcio|rugby|tennis|golf|nba|nfl|ufc|boxe|hockey|ballon|match|liga|ligue|bein|dazn|eleven|espn|motogp|f1|formula/i },
+    { key: 'cine',  re: /cin[eé]|film|movie|s[eé]rie|cinema|hbo|netflix|paramount|thriller|drama|comedy|ocs/i },
+    { key: 'news',  re: /info|news|journal|actu|24h|i24|cnn|bfm|lci|franceinfo|euronews|politic|notic/i },
+    { key: 'kids',  re: /enfant|kids|cartoon|disney|junior|boomerang|nickelodeon|gulli|piwi|baby|toon|d[eé]ssin/i },
+    { key: 'music', re: /musi|music|mtv|clip|hits|jazz|rock|\bpop\b|trace|melody|nrj/i },
+    { key: 'doc',   re: /\bdoc|nature|histoire|history|science|discovery|planet|animal|g[eé]o|natgeo|savoir|culture|voyage|travel/i }
+  ];
+  function catKey(ch) {
+    var s = ((ch && ch.group) || '') + ' ' + ((ch && ch.name) || '');
+    for (var i = 0; i < CATS.length; i++) if (CATS[i].re.test(s)) return CATS[i].key;
+    return 'tv';
+  }
+  function catSVG(ch) { return ICONS[catKey(ch)] || ICONS.tv; }
+
+  // URL logo pour une chaîne : ch.logo http prioritaire, sinon logos.json par id
+  // (exact PUIS base avant @, des deux côtés).
+  function urlFor(ch) {
+    if (!ch) return '';
+    if (isUrl(ch.logo)) return ch.logo;
+    if (!map) return '';
+    var id = ch.id || '';
+    if (!id) return '';
+    if (map[id]) return map[id];
+    var b = baseId(id);
+    if (map[b]) return map[b];
+    if (norm && norm[b]) return norm[b];
+    return '';
+  }
+
+  // Repli : emoji court gardé tel quel, sinon icône catégorie SVG (jamais la lettre).
+  function fallbackNode(ch, cls) {
+    var d = document.createElement('div');
+    d.className = cls || 'logo-fallback';
+    if (ch && ch.logo && !isUrl(ch.logo)) {
+      d.className += ' emoji-fallback';
+      d.textContent = ch.logo;
+    } else {
+      d.className += ' cat-fallback';
+      d.innerHTML = catSVG(ch);
+    }
+    return d;
+  }
+  // Noeud logo complet : <img> si URL connue (repli catégorie à l'erreur), sinon repli.
+  function makeNode(ch, cls) {
+    var url = urlFor(ch);
+    if (url) {
+      var im = document.createElement('img');
+      im.className = 'logo'; im.loading = 'lazy'; im.src = url; im.alt = '';
+      im.onerror = function () { try { this.replaceWith(fallbackNode(ch, cls)); } catch (e) {} };
+      return im;
+    }
+    return fallbackNode(ch, cls);
+  }
+
+  function chFromCard(li) {
+    var d = li.dataset || {};
+    return { id: d.id || '', name: d.name || '', logo: d.logo || '', group: d.group || '', url: d.url || '' };
+  }
+  // Après chargement de logos.json : remplace les replis (lettre/catégorie) par le
+  // vrai logo, en modifiant juste le .poster — priorité au rail ★ Favoris.
+  function upgradePoster(poster, ch) {
+    if (!poster) return;
+    if (poster.querySelector('img.logo')) return;            // déjà un vrai logo
+    if (ch.logo && !isUrl(ch.logo)) return;                  // emoji volontaire : garder
+    var url = urlFor(ch);
+    if (!url) return;                                        // pas de logo → garder l'icône
+    var fb = poster.querySelector('.logo-fallback');
+    var im = document.createElement('img');
+    im.className = 'logo'; im.loading = 'lazy'; im.src = url; im.alt = '';
+    im.onerror = function () { try { this.replaceWith(fallbackNode(ch, 'logo-fallback')); } catch (e) {} };
+    if (fb) fb.replaceWith(im); else poster.insertBefore(im, poster.firstChild);
+  }
+  function applyToCards() {
+    if (!loaded) return;
+    var doOne = function (li) {
+      var poster = li.querySelector('.poster');
+      if (poster) upgradePoster(poster, chFromCard(li));
+      else {
+        // cartes plates (pré-railify) : le repli est enfant direct du <li>
+        var fb = li.querySelector(':scope > .logo-fallback');
+        if (fb) {
+          var ch = chFromCard(li);
+          if (!(ch.logo && !isUrl(ch.logo))) {
+            var url = urlFor(ch);
+            if (url) {
+              var im = document.createElement('img');
+              im.className = 'logo'; im.loading = 'lazy'; im.src = url; im.alt = '';
+              im.onerror = function () { try { this.replaceWith(fallbackNode(ch, 'logo-fallback')); } catch (e) {} };
+              fb.replaceWith(im);
+            }
+          }
+        }
+      }
+    };
+    // Priorité : favoris d'abord, puis le reste.
+    var favCards = document.querySelectorAll('#channels .rail.fav .channel');
+    for (var i = 0; i < favCards.length; i++) doOne(favCards[i]);
+    var all = document.querySelectorAll('#channels .channel');
+    for (var j = 0; j < all.length; j++) if (!favCards.length || Array.prototype.indexOf.call(favCards, all[j]) < 0) doOne(all[j]);
+  }
+
+  function load() {
+    if (loading) return loading;
+    var ctrl = ('AbortController' in window) ? new AbortController() : null;
+    var to = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 6000) : null;
+    var opts = ctrl ? { signal: ctrl.signal, cache: 'force-cache' } : { cache: 'force-cache' };
+    loading = fetch('logos.json', opts).then(function (r) {
+      if (to) { clearTimeout(to); to = null; }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      if (data && typeof data === 'object') {
+        map = data;
+        norm = {};
+        for (var k in map) { if (map.hasOwnProperty(k)) { var b = baseId(k); if (b && !norm[b]) norm[b] = map[k]; } }
+        loaded = true;
+        try { applyToCards(); } catch (e) {}
+        if (typeof window.__onLogosLoaded === 'function') { try { window.__onLogosLoaded(); } catch (e) {} }
+      }
+    }).catch(function () {
+      if (to) { clearTimeout(to); to = null; }
+      // 404 / timeout : on reste sur les icônes catégorie, aucune erreur JS.
+    });
+    return loading;
+  }
+
+  window.__dpLogo = {
+    load: load,
+    urlFor: urlFor,
+    catSVG: catSVG,
+    fallbackNode: fallbackNode,
+    makeNode: makeNode,
+    applyToCards: applyToCards,
+    isLoaded: function () { return loaded; }
+  };
+
+  // Chargement paresseux non bloquant.
+  if (window.requestIdleCallback) requestIdleCallback(function () { load(); }, { timeout: 1500 });
+  else setTimeout(load, 300);
+})();
+</script>
 
 <script>
 (function () {
@@ -1094,7 +1308,10 @@
       li.dataset.id = ch.id || ''; li.dataset.group = ch.group || '';
       li.dataset.url = ch.url || ''; li.dataset.name = ch.name || ''; li.dataset.logo = ch.logo || '';
 
-      if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
+      // Logo réel (logos.json / ch.logo) avec repli icône catégorie — cf. __dpLogo.
+      if (window.__dpLogo && window.__dpLogo.makeNode) {
+        li.appendChild(window.__dpLogo.makeNode(ch, 'logo-fallback'));
+      } else if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
         var img = document.createElement('img');
         img.className = 'logo';
         img.loading = 'lazy';
@@ -1944,13 +2161,27 @@
 </script>
 <div id="guide-overlay" class="sheet-overlay guide-overlay">
   <div class="sheet guide-sheet">
-    <div class="guide-head">
-      <h2>📅 Guide des programmes</h2>
-      <button class="action-btn" id="guide-close">✕ Fermer</button>
+    <div class="guide-top">
+      <div class="guide-head">
+        <h2>📅 Guide des programmes</h2>
+        <button class="action-btn" id="guide-close">✕ Fermer</button>
+      </div>
+      <input type="search" id="guide-search" placeholder="Rechercher une chaîne ou un programme…" autocomplete="off">
+      <div class="guide-days" id="guide-days"></div>
     </div>
-    <p class="hint" id="guide-sub">En ce moment et à suivre sur les chaînes de la playlist courante (celles ayant un identifiant EPG).</p>
     <button class="action-btn" id="guide-retry" style="display:none">↻ Réessayer de charger le guide</button>
-    <div id="guide-list"></div>
+    <div class="guide-sec" id="guide-fav-sec" style="display:none">
+      <h3 class="guide-sec-h">⭐ À venir sur tes favoris</h3>
+      <div id="guide-fav-list"></div>
+    </div>
+    <div class="guide-sec" id="guide-tonight-sec" style="display:none">
+      <h3 class="guide-sec-h">🌙 Ce soir pour toi</h3>
+      <div id="guide-tonight-list"></div>
+    </div>
+    <div class="guide-sec" id="guide-main-sec">
+      <h3 class="guide-sec-h" id="guide-main-h">Toutes les chaînes</h3>
+      <div id="guide-list"></div>
+    </div>
   </div>
 </div>
 
@@ -1974,10 +2205,14 @@
   function firstLetter(name) {
     return (name || '?').charAt(0).toUpperCase();
   }
-  function makeFallback(name, cls) {
+  // Repli : icône catégorie (via __dpLogo) sinon lettre. `chOrName` accepte un
+  // objet chaîne {name,group,logo} ou une simple chaîne de nom.
+  function makeFallback(chOrName, cls) {
+    var ch = (chOrName && typeof chOrName === 'object') ? chOrName : { name: chOrName };
+    if (window.__dpLogo && window.__dpLogo.fallbackNode) return window.__dpLogo.fallbackNode(ch, cls);
     var fb = document.createElement('div');
     fb.className = cls || 'logo-fallback';
-    fb.textContent = firstLetter(name);
+    fb.textContent = firstLetter(ch.name);
     return fb;
   }
 
@@ -1987,6 +2222,14 @@
   var guideReady = false;      // data loaded & usable
   var guideAvailable = false;  // same as guideReady but semantic for UI
   var guideTried = false;      // a fetch attempt has completed (ok or ko)
+
+  // Index complet du guide.json (toutes chaînes, plusieurs jours).
+  var guideChannels = [];      // [{id, name, programs(triés)}]
+  var guideChanById = {};      // id exact -> gc
+  var guideChanByBase = {};    // base-id (avant @) -> gc
+  var guideDays = [];          // minuits locaux (ms) présents dans le guide
+  var guideSelDay = null;      // jour sélectionné (minuit local ms)
+  var guideQ = '';             // recherche courante
 
   // guide.json peut utiliser des ids suffixés (« SportTV1.pt@SD ») alors que les
   // playlists ont souvent « SportTV1.pt ». On indexe la base (avant le @) et on
@@ -2025,6 +2268,7 @@
       if (data && data.channels && typeof data.channels === 'object') {
         guideMap = data.channels;
         buildGuideNorm();
+        buildGuideIndex();
         guideReady = true;
         guideAvailable = true;
         refreshAllEpg();
@@ -2158,19 +2402,18 @@
     li.className = 'channel';
     li.setAttribute('data-id', ch.id || '');
 
+    li.setAttribute('data-url', ch.url || '');
+    li.setAttribute('data-name', ch.name || '');
+    li.setAttribute('data-logo', ch.logo || '');
+    li.setAttribute('data-group', ch.group || '');
+
     var poster = document.createElement('div');
     poster.className = 'poster';
-    if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
-      var im = document.createElement('img');
-      im.className = 'logo'; im.loading = 'lazy'; im.src = ch.logo; im.alt = '';
-      im.onerror = function () { this.replaceWith(makeFallback(ch.name, 'logo-fallback')); };
-      poster.appendChild(im);
-    } else {
-      var fb = document.createElement('div');
-      fb.className = 'logo-fallback';
-      fb.textContent = (ch.logo && !/^https?:\/\//i.test(ch.logo)) ? ch.logo : firstLetter(ch.name);
-      poster.appendChild(fb);
-    }
+    poster.appendChild(
+      (window.__dpLogo && window.__dpLogo.makeNode)
+        ? window.__dpLogo.makeNode(ch, 'logo-fallback')
+        : makeFallback(ch, 'logo-fallback')
+    );
     li.appendChild(poster);
 
     var meta = document.createElement('div');
@@ -2280,84 +2523,314 @@
   var guideOverlay = document.getElementById('guide-overlay');
   var guideOverlayOpen = false;
 
-  function txtGuideLogo(name) {
-    var d = document.createElement('div');
-    d.className = 'guide-logo-fb';
-    d.textContent = firstLetter(name);
-    return d;
+  /* ---------- Index + helpers jour/heure ---------- */
+  var DAY_MS = 86400000;
+  function dayKey(ts) { var d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  function todayKey() { return dayKey(Date.now()); }
+  function fmtTime(ts) {
+    try { return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { var d = new Date(ts); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  }
+  function fmtDay(ts) {
+    try { return new Date(ts).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }); }
+    catch (e) { return new Date(ts).getDate() + ''; }
   }
 
-  function renderGuide() {
+  function buildGuideIndex() {
+    guideChannels = []; guideChanById = {}; guideChanByBase = {};
+    var daySet = {};
+    for (var k in guideMap) {
+      if (!guideMap.hasOwnProperty(k)) continue;
+      var e = guideMap[k];
+      if (!e) continue;
+      var progs = (e.programs || []).filter(function (p) { return p && p.start && p.stop; })
+        .slice().sort(function (a, b) { return a.start - b.start; });
+      if (!progs.length) continue;
+      var gc = { id: k, name: e.name || baseId(k), programs: progs };
+      guideChannels.push(gc);
+      guideChanById[k] = gc;
+      var b = baseId(k);
+      if (b && !guideChanByBase[b]) guideChanByBase[b] = gc;
+      for (var i = 0; i < progs.length; i++) daySet[dayKey(progs[i].start)] = 1;
+    }
+    guideDays = Object.keys(daySet).map(Number).sort(function (a, b) { return a - b; });
+    if (guideSelDay == null || guideDays.indexOf(guideSelDay) < 0) initGuideDay();
+  }
+  function initGuideDay() {
+    var t = todayKey();
+    if (guideDays.indexOf(t) >= 0) { guideSelDay = t; return; }
+    var pick = null;
+    for (var i = 0; i < guideDays.length; i++) { if (guideDays[i] >= t) { pick = guideDays[i]; break; } }
+    guideSelDay = (pick != null) ? pick : (guideDays.length ? guideDays[guideDays.length - 1] : t);
+  }
+  function findGuideChan(id) {
+    if (!id) return null;
+    if (guideChanById[id]) return guideChanById[id];
+    var b = baseId(id);
+    if (guideChanByBase[b]) return guideChanByBase[b];
+    return null;
+  }
+  // Chaîne chargée (getChannels) correspondant à un id guide, matching tolérant.
+  function findLoaded(id) {
+    var chs = (window.__dpiptv && window.__dpiptv.getChannels) ? window.__dpiptv.getChannels() : [];
+    var i, b = baseId(id);
+    for (i = 0; i < chs.length; i++) if (chs[i].id && chs[i].id === id) return chs[i];
+    for (i = 0; i < chs.length; i++) if (chs[i].id && baseId(chs[i].id) === b) return chs[i];
+    return null;
+  }
+  function progsInDay(programs, dayTs) {
+    var start = dayTs, end = dayTs + DAY_MS;
+    return programs.filter(function (p) { return p.start < end && p.stop > start; });
+  }
+
+  // Lecture depuis le Guide : jouer si présent, sinon recherche globale pré-remplie.
+  function openGlobalSearch(name) {
+    closeGuide();
+    var nav = document.getElementById('glass-nav');
+    var btn = nav ? nav.querySelector('button[data-act="search"]') : null;
+    if (btn) btn.click(); // active le mode recherche + bascule en global
+    var s = document.getElementById('search');
+    if (s) {
+      s.value = name || '';
+      try { s.dispatchEvent(new Event('input', { bubbles: true })); }
+      catch (e) { var ev = document.createEvent('Event'); ev.initEvent('input', true, true); s.dispatchEvent(ev); }
+    }
+  }
+  function pickGuideChannel(gc) {
+    var loaded = findLoaded(gc.id);
+    if (loaded) { closeGuide(); if (window.__dpiptv) window.__dpiptv.play(loaded); }
+    else { openGlobalSearch(gc.name); }
+  }
+
+  function guideLogoNode(gc) {
+    var ch = { id: gc.id, name: gc.name, group: '', logo: '' };
+    var lg = document.createElement('div');
+    lg.className = 'guide-logo';
+    var url = (window.__dpLogo && window.__dpLogo.urlFor) ? window.__dpLogo.urlFor(ch) : '';
+    if (url) {
+      var im = document.createElement('img');
+      im.src = url; im.alt = ''; im.loading = 'lazy';
+      im.onerror = function () { try { this.replaceWith(makeFallback(ch, 'guide-logo-fb')); } catch (e) {} };
+      lg.appendChild(im);
+    } else {
+      lg.appendChild(makeFallback(ch, 'guide-logo-fb'));
+    }
+    return lg;
+  }
+
+  // Petite ligne (favoris / ce soir) : heure + titre + chaîne.
+  function compactItem(time, title, chan, gc) {
+    var row = document.createElement('div');
+    row.className = 'gfi';
+    var tm = document.createElement('div'); tm.className = 'gfi-time'; tm.textContent = fmtTime(time);
+    var body = document.createElement('div'); body.className = 'gfi-body';
+    var ti = document.createElement('div'); ti.className = 'gfi-title'; ti.textContent = title || '';
+    var ch = document.createElement('div'); ch.className = 'gfi-chan'; ch.textContent = chan || '';
+    body.appendChild(ti); body.appendChild(ch);
+    row.appendChild(tm); row.appendChild(body);
+    row.addEventListener('click', function () { pickGuideChannel(gc); });
+    return row;
+  }
+
+  function readGuideFavs() {
+    var prof = '';
+    try { prof = localStorage.getItem('dpiptv.currentProfile') || ''; } catch (e) {}
+    if (!prof) return [];
+    try { return JSON.parse(localStorage.getItem('dpiptv.fav.' + prof) || '[]') || []; }
+    catch (e) { return []; }
+  }
+
+  /* ---------- Sélecteur de jour ---------- */
+  function renderDays() {
+    var el = document.getElementById('guide-days');
+    if (!el) return;
+    el.innerHTML = '';
+    if (!guideDays.length) return;
+    var t = todayKey(), tomorrow = dayKey(Date.now() + DAY_MS);
+    function mkBtn(day, label) {
+      var b = document.createElement('button');
+      b.className = 'gd-btn' + (day === guideSelDay ? ' active' : '');
+      b.setAttribute('data-day', String(day));
+      b.textContent = label;
+      return b;
+    }
+    if (guideDays.indexOf(t) >= 0) el.appendChild(mkBtn(t, 'Ce soir'));
+    if (guideDays.indexOf(tomorrow) >= 0) el.appendChild(mkBtn(tomorrow, 'Demain'));
+    var sep = document.createElement('div'); sep.className = 'gd-sep'; el.appendChild(sep);
+    guideDays.forEach(function (day) { el.appendChild(mkBtn(day, fmtDay(day))); });
+  }
+
+  /* ---------- Sections ---------- */
+  function renderFavSection() {
+    var sec = document.getElementById('guide-fav-sec');
+    var list = document.getElementById('guide-fav-list');
+    if (!sec || !list) return;
+    list.innerHTML = '';
+    var favs = readGuideFavs();
+    var isToday = guideSelDay === todayKey();
+    var now = Date.now();
+    var items = [];
+    favs.forEach(function (f) {
+      var gc = findGuideChan(f.id);
+      if (!gc) return;
+      var dayProgs = progsInDay(gc.programs, guideSelDay);
+      if (!dayProgs.length) return;
+      var p = null, i;
+      if (isToday) { for (i = 0; i < dayProgs.length; i++) if (dayProgs[i].stop > now) { p = dayProgs[i]; break; } }
+      else p = dayProgs[0];
+      if (!p) return;
+      items.push({ time: p.start, title: p.title, chan: gc.name, gc: gc });
+    });
+    if (!items.length) { sec.style.display = 'none'; return; }
+    items.sort(function (a, b) { return a.time - b.time; });
+    items.forEach(function (it) { list.appendChild(compactItem(it.time, it.title, it.chan, it.gc)); });
+    sec.style.display = 'block';
+  }
+
+  function renderTonightSection() {
+    var sec = document.getElementById('guide-tonight-sec');
+    var list = document.getElementById('guide-tonight-list');
+    if (!sec || !list) return;
+    list.innerHTML = '';
+    // Onglet « Ce soir » uniquement.
+    if (guideSelDay !== todayKey()) { sec.style.display = 'none'; return; }
+    var primeStart = guideSelDay + Math.round(20.5 * 3600000);
+    var primeEnd = guideSelDay + 23 * 3600000;
+    var favSet = {};
+    readGuideFavs().forEach(function (f) { if (f.id) favSet[baseId(f.id)] = 1; });
+    var HI = /film|match|foot|sport|grand|finale|direct|c[eé]r[eé]monie|gala|coupe|ligue|open|s[eé]rie|concert|spectacle/i;
+    var items = [], seen = {};
+    guideChannels.forEach(function (gc) {
+      var isFav = !!favSet[baseId(gc.id)];
+      for (var i = 0; i < gc.programs.length; i++) {
+        var p = gc.programs[i];
+        if (p.start < primeEnd && p.stop > primeStart) {
+          var hi = HI.test(p.title || '');
+          if ((isFav || hi) && !seen[gc.id]) {
+            seen[gc.id] = 1;
+            items.push({ time: p.start, title: p.title, chan: gc.name, gc: gc, fav: isFav });
+            break;
+          }
+        }
+      }
+    });
+    if (!items.length) { sec.style.display = 'none'; return; }
+    items.sort(function (a, b) { return (b.fav ? 1 : 0) - (a.fav ? 1 : 0) || a.time - b.time; });
+    items.slice(0, 12).forEach(function (it) { list.appendChild(compactItem(it.time, it.title, it.chan, it.gc)); });
+    sec.style.display = 'block';
+  }
+
+  function renderMainList() {
     var listEl = document.getElementById('guide-list');
-    var retry = document.getElementById('guide-retry');
     if (!listEl) return;
     listEl.innerHTML = '';
-    retry.style.display = guideAvailable ? 'none' : (guideTried ? 'block' : 'none');
+    var isToday = guideSelDay === todayKey();
+    var now = Date.now();
+    var q = (guideQ || '').toLowerCase();
+    var rows = [];
+    guideChannels.forEach(function (gc) {
+      var dayProgs = progsInDay(gc.programs, guideSelDay);
+      if (!dayProgs.length) return;
+      var nameMatch = gc.name.toLowerCase().indexOf(q) >= 0;
+      var matchProg = null, i;
+      if (q && !nameMatch) {
+        for (i = 0; i < dayProgs.length; i++) {
+          if (dayProgs[i].title && dayProgs[i].title.toLowerCase().indexOf(q) >= 0) { matchProg = dayProgs[i]; break; }
+        }
+        if (!matchProg) return;
+      }
+      var disp = null, label = '', pct = null, isNow = false, sortKey;
+      if (matchProg) { disp = matchProg; label = fmtTime(matchProg.start); sortKey = matchProg.start; }
+      else if (isToday) {
+        var info = currentNext(gc.programs);
+        if (info && info.now) { disp = info.now; isNow = true; pct = info.pct; sortKey = -1; }
+        else {
+          var nxt = null;
+          for (i = 0; i < dayProgs.length; i++) if (dayProgs[i].start >= now) { nxt = dayProgs[i]; break; }
+          if (!nxt) nxt = dayProgs[dayProgs.length - 1];
+          disp = nxt; label = fmtTime(nxt.start); sortKey = nxt.start;
+        }
+      } else { disp = dayProgs[0]; label = fmtTime(dayProgs[0].start); sortKey = dayProgs[0].start; }
+      rows.push({ gc: gc, prog: disp, label: label, pct: pct, isNow: isNow, next: (isNow && currentNext(gc.programs)) ? currentNext(gc.programs).next : null, sortKey: sortKey });
+    });
+    rows.sort(function (a, b) { return a.sortKey - b.sortKey || a.gc.name.localeCompare(b.gc.name); });
 
-    if (!guideAvailable) {
+    if (!rows.length) {
       var m = document.createElement('div');
       m.className = 'guide-empty';
-      m.textContent = guideTried
-        ? 'Guide des programmes indisponible pour le moment.'
-        : 'Chargement du guide…';
+      m.textContent = q ? 'Aucun résultat pour cette recherche.' : 'Aucun programme ce jour-là.';
       listEl.appendChild(m);
       return;
     }
 
-    var chs = (window.__dpiptv && window.__dpiptv.getChannels) ? window.__dpiptv.getChannels() : [];
-    var shown = 0;
-    chs.forEach(function (c) {
-      if (!c.id) return;
-      var e = lookupGuide(c.id);
-      if (!e || !e.programs) return;
-      var info = currentNext(e.programs);
-      if (!info || !info.now) return;
-      shown++;
-
+    rows.forEach(function (r) {
       var row = document.createElement('div');
       row.className = 'guide-row';
-
-      var lg = document.createElement('div');
-      lg.className = 'guide-logo';
-      if (c.logo && /^https?:\/\//i.test(c.logo)) {
-        var im = document.createElement('img');
-        im.src = c.logo; im.alt = '';
-        im.onerror = function () { this.replaceWith(txtGuideLogo(c.name)); };
-        lg.appendChild(im);
-      } else {
-        lg.appendChild(txtGuideLogo(c.name));
-      }
-
+      row.appendChild(guideLogoNode(r.gc));
       var body = document.createElement('div');
       body.className = 'guide-body';
-      var nm = document.createElement('div'); nm.className = 'guide-name'; nm.textContent = c.name;
-      var nowD = document.createElement('div'); nowD.className = 'guide-now';
-      nowD.innerHTML = '<b>En ce moment :</b> ' + esc(info.now.title);
-      var bar = document.createElement('div'); bar.className = 'epg-bar';
-      var f = document.createElement('span'); f.style.width = info.pct + '%'; bar.appendChild(f);
-      body.appendChild(nm); body.appendChild(nowD); body.appendChild(bar);
-      if (info.next && info.next.title) {
-        var nx = document.createElement('div'); nx.className = 'guide-next';
-        nx.innerHTML = '<b>À suivre :</b> ' + esc(info.next.title);
-        body.appendChild(nx);
+      var nm = document.createElement('div'); nm.className = 'guide-name'; nm.textContent = r.gc.name;
+      body.appendChild(nm);
+      if (r.isNow) {
+        var nowD = document.createElement('div'); nowD.className = 'guide-now';
+        nowD.innerHTML = '<b>En ce moment :</b> ' + esc(r.prog.title);
+        body.appendChild(nowD);
+        var bar = document.createElement('div'); bar.className = 'epg-bar';
+        var f = document.createElement('span'); f.style.width = (r.pct || 0) + '%'; bar.appendChild(f);
+        body.appendChild(bar);
+        if (r.next && r.next.title) {
+          var nx = document.createElement('div'); nx.className = 'guide-next';
+          nx.innerHTML = '<b>À suivre :</b> ' + esc(r.next.title);
+          body.appendChild(nx);
+        }
+      } else {
+        var wh = document.createElement('div'); wh.className = 'guide-when';
+        wh.innerHTML = '<b>' + esc(r.label) + '</b> · ' + esc(r.prog.title || '');
+        body.appendChild(wh);
       }
-      row.appendChild(lg);
       row.appendChild(body);
-      row.addEventListener('click', function () { closeGuide(); if (window.__dpiptv) window.__dpiptv.play(c); });
+      row.addEventListener('click', function () { pickGuideChannel(r.gc); });
       listEl.appendChild(row);
     });
+  }
 
-    if (!shown) {
-      var m2 = document.createElement('div');
-      m2.className = 'guide-empty';
-      m2.textContent = "Aucune chaîne de cette playlist n'a de guide disponible pour l'instant.";
-      listEl.appendChild(m2);
+  function renderGuide() {
+    var retry = document.getElementById('guide-retry');
+    var mainSec = document.getElementById('guide-main-sec');
+    var favSec = document.getElementById('guide-fav-sec');
+    var tonightSec = document.getElementById('guide-tonight-sec');
+    var daysEl = document.getElementById('guide-days');
+    var listEl = document.getElementById('guide-list');
+    if (retry) retry.style.display = guideAvailable ? 'none' : (guideTried ? 'block' : 'none');
+
+    if (!guideAvailable) {
+      if (favSec) favSec.style.display = 'none';
+      if (tonightSec) tonightSec.style.display = 'none';
+      if (daysEl) daysEl.innerHTML = '';
+      if (mainSec) mainSec.style.display = 'block';
+      if (listEl) {
+        listEl.innerHTML = '';
+        var m = document.createElement('div');
+        m.className = 'guide-empty';
+        m.textContent = guideTried
+          ? 'Guide des programmes indisponible pour le moment.'
+          : 'Chargement du guide…';
+        listEl.appendChild(m);
+      }
+      return;
     }
+    if (mainSec) mainSec.style.display = 'block';
+    if (guideSelDay == null) initGuideDay();
+    renderDays();
+    renderFavSection();
+    renderTonightSection();
+    renderMainList();
   }
 
   function openGuide() {
     guideOverlayOpen = true;
     guideOverlay.classList.add('visible');
+    if (window.__dpLogo && window.__dpLogo.load) { try { window.__dpLogo.load(); } catch (e) {} }
     if (!guideAvailable) fetchGuide();
     renderGuide();
   }
@@ -2372,6 +2845,31 @@
   document.getElementById('guide-retry').addEventListener('click', function () { fetchGuide().then(renderGuide); });
   guideOverlay.addEventListener('click', function (e) { if (e.target === guideOverlay) closeGuide(); });
 
+  // Recherche (debounce ~150ms) — ne re-render que la liste principale.
+  var guideSearchEl = document.getElementById('guide-search');
+  var guideSearchTimer = null;
+  if (guideSearchEl) guideSearchEl.addEventListener('input', function () {
+    clearTimeout(guideSearchTimer);
+    guideSearchTimer = setTimeout(function () {
+      guideQ = guideSearchEl.value.trim();
+      if (guideAvailable) renderMainList();
+    }, 150);
+  });
+
+  // Sélecteur de jour (délégation).
+  var guideDaysEl = document.getElementById('guide-days');
+  if (guideDaysEl) guideDaysEl.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.gd-btn') : null;
+    if (!b) return;
+    var d = Number(b.getAttribute('data-day'));
+    if (isNaN(d)) return;
+    guideSelDay = d;
+    renderDays();
+    renderFavSection();
+    renderTonightSection();
+    renderMainList();
+  });
+
   var navHome = document.getElementById('nav-home');
   if (navHome) navHome.addEventListener('click', function () {
     closeGuide();
@@ -2379,6 +2877,11 @@
   });
 
   /* ---------------- Init & periodic EPG refresh ---------------- */
+  // Quand logos.json arrive : rafraîchir les vrais logos (cartes + guide ouvert).
+  window.__onLogosLoaded = function () {
+    try { if (window.__dpLogo && window.__dpLogo.applyToCards) window.__dpLogo.applyToCards(); } catch (e) {}
+    try { if (guideOverlayOpen && guideAvailable) renderGuide(); } catch (e) {}
+  };
   fetchGuide();
   // Keep progress bars / now-playing labels fresh over time.
   setInterval(function () {
@@ -2750,21 +3253,16 @@
 
     var poster = document.createElement('div');
     poster.className = 'poster';
-    if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
-      var im = document.createElement('img');
-      im.className = 'logo'; im.loading = 'lazy'; im.src = ch.logo; im.alt = '';
-      im.onerror = function () {
-        var fb = document.createElement('div');
-        fb.className = 'logo-fallback'; fb.textContent = firstLetter(ch.name);
-        this.replaceWith(fb);
-      };
-      poster.appendChild(im);
-    } else {
-      var fb = document.createElement('div');
-      fb.className = 'logo-fallback';
-      fb.textContent = (ch.logo && !/^https?:\/\//i.test(ch.logo)) ? ch.logo : firstLetter(ch.name);
-      poster.appendChild(fb);
-    }
+    poster.appendChild(
+      (window.__dpLogo && window.__dpLogo.makeNode)
+        ? window.__dpLogo.makeNode(ch, 'logo-fallback')
+        : (function () {
+            var fb = document.createElement('div');
+            fb.className = 'logo-fallback';
+            fb.textContent = (ch.logo && !/^https?:\/\//i.test(ch.logo)) ? ch.logo : firstLetter(ch.name);
+            return fb;
+          })()
+    );
     li.appendChild(poster);
 
     var meta = document.createElement('div');
