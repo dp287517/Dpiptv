@@ -2852,12 +2852,48 @@
     });
   });
 
+  // Normalise un nom de chaîne (retire (1080p), [Geo-blocked], HD/SD, ponctuation).
+  function normName(s) {
+    return String(s || '').toLowerCase()
+      .replace(/\(\s*\d+\s*p\s*\)/g, '').replace(/\[[^\]]*\]/g, '')
+      .replace(/\b(fhd|uhd|hd|sd|4k)\b/g, '')
+      .replace(/[^a-z0-9]+/g, '');
+  }
+  function findInList(list, id, name) {
+    var b = id ? String(id).split('@')[0] : '', i;
+    if (b) for (i = 0; i < list.length; i++) { var lid = list[i].id; if (lid && (lid === id || String(lid).split('@')[0] === b)) return list[i]; }
+    if (name) {
+      var nn = normName(name);
+      if (nn) {
+        for (i = 0; i < list.length; i++) if (normName(list[i].name) === nn) return list[i];
+        for (i = 0; i < list.length; i++) { var ln = normName(list[i].name); if (ln && nn && (ln.indexOf(nn) >= 0 || nn.indexOf(ln) >= 0)) return list[i]; }
+      }
+    }
+    return null;
+  }
+  // Retrouve le flux d'une chaîne (playlist courante → sources iptv-org par tvg-id)
+  // et le lit. Sinon appelle onNotFound (repli recherche).
+  function resolveAndPlay(id, name, onNotFound) {
+    var c = findInList(channels, id, name);
+    if (c) { startPlay(c, null); return; }
+    setStatus('info', 'Recherche du flux de « ' + escapeHtml(name || '') + ' »…');
+    ensureAltSources().then(function (idx) {
+      var b = id ? String(id).split('@')[0] : '';
+      var urls = (b && idx && idx[b]) ? idx[b] : null;
+      if (urls && urls.length) {
+        // id = base → la bascule auto de source retrouvera les autres URLs.
+        startPlay({ id: b, name: name || 'Chaîne', url: urls[0], group: '', logo: '' }, null);
+      } else { setStatus('', ''); if (onNotFound) onNotFound(); }
+    }, function () { setStatus('', ''); if (onNotFound) onNotFound(); });
+  }
+
   window.__dpiptv = {
     play: function (ch) { exitGlobalMode(); setActiveChip(null); startPlay(ch, null); },
     openInVlc: openInVlc,
     loadPlaylist: loadPlaylist,
     getChannels: function () { return channels.slice(); },
     isGlobal: function () { return globalMode; },
+    resolveAndPlay: resolveAndPlay,
     stop: function () { stopPlayback(); markPlaying(null); nowPlayingEl.classList.remove('visible'); }
   };
   dbg('Dpiptv prêt · proxy=' + proxyMode + ' · https=' + (location.protocol === 'https:'));
@@ -3314,8 +3350,12 @@
   }
   function pickGuideChannel(gc) {
     var loaded = findLoaded(gc.id);
-    if (loaded) { closeGuide(); if (window.__dpiptv) window.__dpiptv.play(loaded); }
-    else { openGlobalSearch(gc.name); }
+    if (loaded) { closeGuide(); if (window.__dpiptv) window.__dpiptv.play(loaded); return; }
+    closeGuide();
+    // Pas dans la playlist courante : retrouver le flux (sources iptv-org) et lire.
+    // En dernier recours seulement, bascule sur la recherche.
+    if (window.__dpiptv && window.__dpiptv.resolveAndPlay) window.__dpiptv.resolveAndPlay(gc.id, gc.name, function () { openGlobalSearch(gc.name); });
+    else openGlobalSearch(gc.name);
   }
 
   function guideLogoNode(gc) {
