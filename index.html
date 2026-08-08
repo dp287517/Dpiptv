@@ -3088,6 +3088,8 @@
     var cards = channelsEl.querySelectorAll('.channel');
     for (var i = 0; i < cards.length; i++) attachEpg(cards[i]);
   }
+  // Exposé pour les autres <script> (buildFavCard vit dans un scope séparé).
+  window.__attachEpg = attachEpg;
 
   /* ---------------- Recently viewed (per profile) ---------------- */
   var RECENT_MAX = 15;
@@ -4393,12 +4395,17 @@
     if (ch.group) { var gr = document.createElement('div'); gr.className = 'group'; gr.textContent = ch.group; meta.appendChild(gr); }
     li.appendChild(meta);
 
+    // Bandeau EPG (programme en cours) — comme les cartes récentes.
+    var epg = document.createElement('div'); epg.className = 'card-epg'; epg.style.display = 'none';
+    li.appendChild(epg);
+
     var actions = document.createElement('div');
     actions.className = 'card-actions';
     li.appendChild(actions);
 
     addStar(li, ch);
     li.addEventListener('click', function () { if (window.__dpiptv) window.__dpiptv.play(ch); });
+    if (window.__attachEpg) window.__attachEpg(li);
     return li;
   }
 
