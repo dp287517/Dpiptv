@@ -1999,19 +1999,31 @@
   function b64encode(str) { return btoa(unescape(encodeURIComponent(str))); }
   function b64decode(str) { return decodeURIComponent(escape(atob(str))); }
 
+  function lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+
   document.getElementById('src-export').addEventListener('click', function () {
     var hasProxy = proxyTpl && proxyTpl !== DEFAULT_PROXY;
-    if (!customChannels.length && !customSources.length && !hasProxy) {
+    var profiles = lsGet('dpiptv.profiles') || [];
+    if (!customChannels.length && !customSources.length && !hasProxy && !profiles.length) {
       setStatus('warn', 'Rien à exporter pour l’instant.');
       return;
     }
-    // Export also carries the proxy config so all devices share the same worker.
-    var payload = { v: 1, channels: customChannels, playlists: customSources,
-      proxy: { tpl: proxyTpl, mode: proxyMode } };
+    // Export carries proxy config AND profiles (with their favorites/recent)
+    // so all devices share the same setup.
+    var profData = {};
+    profiles.forEach(function (p) {
+      profData[p.id] = { fav: lsGet('dpiptv.fav.' + p.id) || [], recent: lsGet('dpiptv.recent.' + p.id) || [] };
+    });
+    var payload = {
+      v: 1, channels: customChannels, playlists: customSources,
+      proxy: { tpl: proxyTpl, mode: proxyMode },
+      profiles: profiles, profileData: profData,
+      currentProfile: (function () { try { return localStorage.getItem('dpiptv.currentProfile') || ''; } catch (e) { return ''; } })()
+    };
     var code = 'DPIPTV1:' + b64encode(JSON.stringify(payload));
     copyText(code);
     closeSources();
-    setStatus('info', 'Code d’export copié ✔ (chaînes, playlists <b>et proxy</b>) — envoie-le-toi puis <b>Importe</b>-le sur l’autre appareil.');
+    setStatus('info', 'Code d’export copié ✔ (chaînes, playlists, proxy <b>et profils</b>) — envoie-le-toi puis <b>Importe</b>-le sur l’autre appareil.');
   });
 
   document.getElementById('src-import').addEventListener('click', function () {
@@ -2021,7 +2033,7 @@
     if (code.indexOf('DPIPTV1:') === 0) code = code.slice('DPIPTV1:'.length);
     var data;
     try { data = JSON.parse(b64decode(code)); } catch (e) { setStatus('error', 'Code invalide ou incomplet.'); return; }
-    if (!data || (!data.channels && !data.playlists)) { setStatus('error', 'Code non reconnu.'); return; }
+    if (!data || (!data.channels && !data.playlists && !data.profiles && !data.proxy)) { setStatus('error', 'Code non reconnu.'); return; }
     var seenCh = {}; customChannels.forEach(function (c) { seenCh[c.url] = 1; });
     var seenPl = {}; customSources.forEach(function (p) { seenPl[p.url] = 1; });
     var addedC = 0, addedP = 0;
@@ -2047,9 +2059,29 @@
       localStorage.setItem('dpiptv.proxyMode', proxyMode);
       proxyMsg = ' · proxy synchronisé';
     }
+    // Profils + leurs favoris/récent (fusion : garde les profils existants, ajoute les manquants).
+    var addedProf = 0;
+    if (Array.isArray(data.profiles) && data.profiles.length) {
+      var existing = lsGet('dpiptv.profiles') || [];
+      var byId = {}; existing.forEach(function (p) { byId[p.id] = 1; });
+      var pd = data.profileData || {};
+      data.profiles.forEach(function (p) {
+        if (!p || !p.id) return;
+        if (!byId[p.id]) { existing.push(p); byId[p.id] = 1; addedProf++; }
+        var d = pd[p.id] || {};
+        if (d.fav) try { localStorage.setItem('dpiptv.fav.' + p.id, JSON.stringify(d.fav)); } catch (e) {}
+        if (d.recent) try { localStorage.setItem('dpiptv.recent.' + p.id, JSON.stringify(d.recent)); } catch (e) {}
+      });
+      try { localStorage.setItem('dpiptv.profiles', JSON.stringify(existing)); } catch (e) {}
+      if (data.currentProfile) try { localStorage.setItem('dpiptv.currentProfile', data.currentProfile); } catch (e) {}
+    }
     saveMyChannels(); saveCustom();
     renderChips(); renderMyList(); renderSrcList();
-    setStatus('info', 'Import terminé : ' + addedC + ' chaîne(s) et ' + addedP + ' playlist(s)' + proxyMsg + '.');
+    var profMsg = addedProf ? (' · ' + addedProf + ' profil(s)') : '';
+    setStatus('info', 'Import terminé : ' + addedC + ' chaîne(s), ' + addedP + ' playlist(s)' + profMsg + proxyMsg +
+      (addedProf ? '. Rechargement…' : '.'));
+    // Recharge pour que profils/favoris/avatar/rails se réinitialisent proprement.
+    if (addedProf) setTimeout(function () { location.reload(); }, 1400);
   });
 
   renderChips();
@@ -2918,7 +2950,10 @@
   <div class="profile-inner">
     <h1 class="profile-h">Qui regarde&nbsp;?</h1>
     <div id="profile-grid" class="profile-grid"></div>
-    <button id="profile-manage" class="profile-manage" type="button">Gérer les profils</button>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button id="profile-manage" class="profile-manage" type="button">Gérer les profils</button>
+      <button id="profile-import" class="profile-manage" type="button">⤵ Importer mes profils</button>
+    </div>
   </div>
 </div>
 
@@ -3190,6 +3225,39 @@
   if (manageBtn) manageBtn.addEventListener('click', function () {
     var on = profileOverlay.classList.toggle('managing');
     this.textContent = on ? 'Terminé' : 'Gérer les profils';
+  });
+
+  // Importer ses profils depuis un autre appareil (accessible dès l'écran « Qui regarde ? »).
+  var importBtn = document.getElementById('profile-import');
+  if (importBtn) importBtn.addEventListener('click', function () {
+    var code = prompt('Colle ici ton code Dpiptv (exporté depuis l’autre appareil, via ⚙️ Paramètres → Mes liens → Exporter) :');
+    if (code == null) return;
+    code = code.trim();
+    if (code.indexOf('DPIPTV1:') === 0) code = code.slice('DPIPTV1:'.length);
+    var data;
+    try { data = JSON.parse(decodeURIComponent(escape(atob(code)))); } catch (e) { alert('Code invalide ou incomplet.'); return; }
+    if (!data || !Array.isArray(data.profiles) || !data.profiles.length) { alert('Ce code ne contient pas de profils.'); return; }
+    var existing = readProfiles();
+    var byId = {}; existing.forEach(function (p) { byId[p.id] = 1; });
+    var pd = data.profileData || {};
+    var added = 0;
+    data.profiles.forEach(function (p) {
+      if (!p || !p.id) return;
+      if (!byId[p.id]) { existing.push(p); byId[p.id] = 1; added++; }
+      var d = pd[p.id] || {};
+      if (d.fav) try { localStorage.setItem('dpiptv.fav.' + p.id, JSON.stringify(d.fav)); } catch (e) {}
+      if (d.recent) try { localStorage.setItem('dpiptv.recent.' + p.id, JSON.stringify(d.recent)); } catch (e) {}
+    });
+    writeProfiles(existing);
+    if (data.currentProfile) try { localStorage.setItem('dpiptv.currentProfile', data.currentProfile); } catch (e) {}
+    // Restaure aussi proxy + liens si présents (setup complet sur le nouvel appareil).
+    if (data.proxy && data.proxy.tpl) {
+      try { localStorage.setItem('dpiptv.proxyTpl', data.proxy.tpl); localStorage.setItem('dpiptv.proxyMode', data.proxy.mode || 'fallback'); } catch (e) {}
+    }
+    if (Array.isArray(data.channels) && data.channels.length) { try { localStorage.setItem('dpiptv.mychannels', JSON.stringify(data.channels)); } catch (e) {} }
+    if (Array.isArray(data.playlists) && data.playlists.length) { try { localStorage.setItem('dpiptv.custom', JSON.stringify(data.playlists)); } catch (e) {} }
+    alert(added + ' profil(s) importé(s). La page va se recharger.');
+    location.reload();
   });
 
   /* ---------------- Favoris par profil ---------------- */
