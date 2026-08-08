@@ -3221,8 +3221,9 @@
       });
       grid.appendChild(tile);
     });
+    // Création réservée à l'admin (toi) : les invités ne voient que les profils à choisir.
     var add = document.createElement('button');
-    add.className = 'profile-tile add'; add.type = 'button';
+    add.className = 'profile-tile add admin-only'; add.type = 'button';
     var av2 = document.createElement('span'); av2.className = 'av'; av2.textContent = '+';
     var nm2 = document.createElement('span'); nm2.className = 'nm'; nm2.textContent = 'Ajouter';
     add.appendChild(av2); add.appendChild(nm2);
@@ -3344,7 +3345,11 @@
   window.__syncApplying = false;
   var syncPushTimer = null;
 
-  function syncCodeVal() { try { return localStorage.getItem('dpiptv.sync.code') || ''; } catch (e) { return ''; } }
+  // Code de synchro PARTAGÉ intégré à l'appli : tous les appareils lisent/écrivent le même
+  // « bac famille » automatiquement, sans que personne ait à taper quoi que ce soit.
+  // (C'est un fork privé perso ; on privilégie le zéro-friction pour la famille.)
+  var DEFAULT_SYNC_CODE = 'dpv-palha-fam-6b1f9c3e7a2d';
+  function syncCodeVal() { return DEFAULT_SYNC_CODE; }
   function syncBase() {
     // Lu depuis localStorage (proxyTpl vit dans un autre <script>) avec repli sur le proxy par défaut.
     var tpl; try { tpl = localStorage.getItem('dpiptv.proxyTpl'); } catch (e) { tpl = null; }
@@ -3431,38 +3436,17 @@
   function updateSyncUi() {
     var el = document.getElementById('sync-status');
     var btn = document.getElementById('profile-sync');
-    var code = syncCodeVal();
-    if (btn) btn.textContent = code ? '☁️ Synchro : ' + code : '☁️ Synchro cloud';
+    if (btn) btn.textContent = '☁️ Synchro auto (active)';
     if (!el) return;
     if (!syncBase()) { el.textContent = '⚠️ Configure d’abord un proxy Cloudflare (⚙️) pour activer la synchro.'; return; }
-    el.textContent = code
-      ? 'Synchro active — code « ' + code + ' ». Mets le même code sur tes autres appareils.'
-      : 'Synchro désactivée. Touche « Synchro cloud » et choisis un code (le même partout).';
-  }
-
-  function setSyncCode(code) {
-    code = (code || '').trim();
-    if (code) {
-      if (!/^[A-Za-z0-9_-]{4,64}$/.test(code)) { alert('Code invalide : 4 à 64 caractères (lettres, chiffres, - et _).'); return; }
-      try { localStorage.setItem('dpiptv.sync.code', code); localStorage.removeItem('dpiptv.sync.at'); } catch (e) {}
-      syncPull(true); // récupère le cloud ; s'il est vide, amorce avec cet appareil
-    } else {
-      try { localStorage.removeItem('dpiptv.sync.code'); localStorage.removeItem('dpiptv.sync.at'); } catch (e) {}
-    }
-    updateSyncUi();
+    el.textContent = 'Synchro automatique active. Crée tes profils ici — ils apparaissent sur TOUS les appareils de la famille sans rien à taper.';
   }
 
   var syncBtn = document.getElementById('profile-sync');
   if (syncBtn) syncBtn.addEventListener('click', function () {
     if (!syncBase()) { alert('Active d’abord un proxy Cloudflare dans ⚙️ Paramètres — la synchro utilise le même worker.'); return; }
-    var cur = syncCodeVal();
-    var msg = cur
-      ? 'Code de synchro actuel : « ' + cur + ' ».\n\nEntre un code (le MÊME sur tous tes appareils) pour synchroniser profils + favoris automatiquement.\nLaisse VIDE puis OK pour désactiver la synchro sur cet appareil.'
-      : 'Choisis un « code famille » (ex : palha2026).\nMets EXACTEMENT le même code sur ton téléphone, ton PC, etc. — les profils + favoris se synchroniseront tout seuls.';
-    var code = prompt(msg, cur || '');
-    if (code == null) return;
-    setSyncCode(code);
-    if (syncCodeVal()) alert('Synchro activée avec le code « ' + syncCodeVal() + ' ».\nMets le même code sur tes autres appareils pour y retrouver tes profils.');
+    alert('La synchro est AUTOMATIQUE ✅\n\nLes profils que tu crées ici sont partagés avec tous les appareils de la famille — chacun ouvre l’appli et choisit son profil, sans code ni mot de passe.\n\nForce une mise à jour maintenant ?');
+    syncPull(false);
   });
 
   // Envoi IMMÉDIAT (non débouncé) de l'état courant, puis callback — utilisé par la réinitialisation
