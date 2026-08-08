@@ -9,7 +9,7 @@
  *   { "generatedAt": ISO8601,
  *     "channels": {
  *       "<xmltv_id>": { "name": "...",
- *         "programs": [ { "start": epochMs, "stop": epochMs, "title": "...", "desc": "..." } ] } } }
+ *         "programs": [ { "start": epochMs, "stop": epochMs, "title": "..." } ] } } }
  *
  * XMLTV bien formé (une balise <programme> par bloc), donc parsing par blocs
  * sans dépendance externe. Les temps XMLTV "YYYYMMDDHHmmss +ZZZZ" sont
@@ -65,11 +65,9 @@ function convert(xml) {
     const stop = xmltvTime(attr(head, 'stop'))
     if (start == null || stop == null) continue
     if (!channels[id]) channels[id] = { name: channelNames[id] || id, programs: [] }
-    channels[id].programs.push({
-      start, stop,
-      title: innerTag(body, 'title'),
-      desc: innerTag(body, 'desc')
-    })
+    // On ne garde que start/stop/title : le lecteur n'affiche pas la description,
+    // et l'omettre réduit fortement la taille de guide.json (mobile).
+    channels[id].programs.push({ start, stop, title: innerTag(body, 'title') })
   }
   // Tri par début + limite raisonnable par chaîne (72 h autour de maintenant suffit)
   for (const id of Object.keys(channels)) {
