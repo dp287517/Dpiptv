@@ -3620,5 +3620,54 @@
   if (!currentProfileId) openProfileOverlay();
 })();
 </script>
+<script>
+/* ---------------- Diagnostic à distance (temporaire) ----------------
+   Capture les logs de lecture (console + erreurs + statut) et les envoie au
+   worker (clé KV « sync:dpdbg ») pour dépannage. Aucune donnée sensible autre
+   que les liens de flux et messages d'erreur. À retirer une fois le bug réglé. */
+(function () {
+  var BUF = [], MAX = 250;
+  function stamp() { try { return new Date().toISOString().slice(11, 19); } catch (e) { return ''; } }
+  function fmt(a) {
+    if (a instanceof Error) return a.name + ': ' + a.message;
+    if (a && typeof a === 'object') { try { return JSON.stringify(a).slice(0, 400); } catch (e) { return String(a); } }
+    return String(a);
+  }
+  function push(kind, args) {
+    try {
+      var line = '[' + stamp() + '] ' + kind + ': ' + Array.prototype.map.call(args, fmt).join(' ');
+      BUF.push(line);
+      if (BUF.length > MAX) BUF.shift();
+      schedule();
+    } catch (e) {}
+  }
+  ['log', 'warn', 'error'].forEach(function (k) {
+    var orig = console[k] ? console[k].bind(console) : function () {};
+    console[k] = function () { try { orig.apply(null, arguments); } catch (e) {} push(k.toUpperCase(), arguments); };
+  });
+  window.addEventListener('error', function (e) {
+    push('JSERR', [(e && e.message) || 'error', (e && e.filename ? e.filename : '') + ':' + (e && e.lineno ? e.lineno : '')]);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    push('REJECT', [e && e.reason && e.reason.message ? e.reason.message : (e && e.reason)]);
+  });
+  function base() {
+    var tpl; try { tpl = localStorage.getItem('dpiptv.proxyTpl'); } catch (e) { tpl = null; }
+    if (tpl === null || !tpl) tpl = 'https://poly-proxy.palhadaniel-elec.workers.dev/?url={url}';
+    try { return new URL(tpl).origin + '/sync'; } catch (e) { return ''; }
+  }
+  var timer = null;
+  function schedule() { if (timer) return; timer = setTimeout(flush, 1500); }
+  function flush() {
+    timer = null;
+    var b = base(); if (!b) return;
+    var prof = ''; try { prof = localStorage.getItem('dpiptv.currentProfile') || ''; } catch (e) {}
+    var body = JSON.stringify({ ua: navigator.userAgent, profile: prof, at: Date.now(), lines: BUF.slice(-150) });
+    try { fetch(b + '?code=dpdbg', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: body }).catch(function () {}); } catch (e) {}
+  }
+  window.__dpdbg = { log: function (m) { push('APP', [m]); }, flush: flush, buffer: function () { return BUF.slice(); } };
+  push('APP', ['diagnostic actif — ' + (navigator.userAgent || '')]);
+})();
+</script>
 </body>
 </html>
