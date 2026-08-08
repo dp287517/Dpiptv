@@ -681,6 +681,46 @@
   .gfi-body { flex: 1; min-width: 0; }
   .gfi-title { color: #fff; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gfi-chan { color: var(--muted); font-size: .74rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---- Guide en rails « Netflix » par catégorie ---- */
+  .guide-rails { display: flex; flex-direction: column; gap: 20px; margin-top: 14px; }
+  .g-rail-h { display: flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 700; color: #fff; margin: 0 0 10px; }
+  .g-rail-h .g-emoji { font-size: 1.1rem; }
+  .g-rail-h .g-accent { width: 4px; height: 16px; border-radius: 2px; background: var(--r-accent, var(--accent)); }
+  .g-rail-track { display: flex; gap: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; scroll-snap-type: x proximity; }
+  .g-rail-track::-webkit-scrollbar { display: none; }
+  .g-card {
+    flex: none; width: 156px; scroll-snap-align: start; cursor: pointer;
+    background: var(--surface2); border: 1px solid var(--surface3); border-radius: 14px; overflow: hidden;
+    transition: transform .12s ease, border-color .12s ease;
+  }
+  .g-card:hover { border-color: var(--accent); }
+  .g-card:active { transform: scale(.97); }
+  .g-thumb {
+    position: relative; height: 86px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--r-accent, #4f8cff) 22%, transparent), rgba(255,255,255,.02));
+    border-bottom: 1px solid var(--surface3);
+  }
+  .g-thumb img { max-width: 72%; max-height: 66%; object-fit: contain; }
+  .g-thumb .guide-logo-fb { font-weight: 800; font-size: 1.5rem; color: #fff; }
+  .g-live { position: absolute; top: 6px; left: 6px; font-size: .58rem; font-weight: 800; letter-spacing: .04em; background: var(--err); color: #fff; padding: 2px 6px; border-radius: 6px; }
+  .g-body { padding: 8px 10px 10px; }
+  .g-ch { font-size: .82rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .g-prog { font-size: .75rem; color: #cfe0ff; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .g-when { font-size: .72rem; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .g-bar { height: 3px; border-radius: 2px; background: var(--surface3); margin-top: 7px; overflow: hidden; }
+  .g-bar span { display: block; height: 100%; background: var(--r-accent, var(--accent)); }
+  .g-rail-empty { color: var(--muted); font-size: .84rem; padding: 6px 2px; }
+  /* Éditeur de goûts (guide) */
+  .guide-tastes { display: flex; gap: 7px; overflow-x: auto; -webkit-overflow-scrolling: touch; align-items: center; padding-bottom: 2px; }
+  .guide-tastes::-webkit-scrollbar { display: none; }
+  .gt-label { flex: none; font-size: .78rem; color: var(--muted); font-weight: 600; margin-right: 2px; }
+  .gt-chip {
+    flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 999px;
+    background: var(--surface2); border: 1px solid var(--surface3); color: var(--muted); font-size: .78rem; cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .gt-chip.on { background: color-mix(in srgb, var(--chip-c, #4f8cff) 26%, transparent); border-color: var(--chip-c, #4f8cff); color: #fff; font-weight: 600; }
   .guide-when { font-size: .8rem; color: var(--muted); margin-top: 2px; }
   .guide-when b { color: #cfe0ff; font-weight: 600; }
 </style>
@@ -2445,18 +2485,12 @@
       </div>
       <input type="search" id="guide-search" placeholder="Rechercher une chaîne ou un programme…" autocomplete="off">
       <div class="guide-days" id="guide-days"></div>
+      <div class="guide-tastes" id="guide-tastes" style="display:none"></div>
     </div>
     <button class="action-btn" id="guide-retry" style="display:none">↻ Réessayer de charger le guide</button>
-    <div class="guide-sec" id="guide-fav-sec" style="display:none">
-      <h3 class="guide-sec-h">⭐ À venir sur tes favoris</h3>
-      <div id="guide-fav-list"></div>
-    </div>
-    <div class="guide-sec" id="guide-tonight-sec" style="display:none">
-      <h3 class="guide-sec-h">🌙 Ce soir pour toi</h3>
-      <div id="guide-tonight-list"></div>
-    </div>
-    <div class="guide-sec" id="guide-main-sec">
-      <h3 class="guide-sec-h" id="guide-main-h">Toutes les chaînes</h3>
+    <div id="guide-rails" class="guide-rails"></div>
+    <div class="guide-sec" id="guide-main-sec" style="display:none">
+      <h3 class="guide-sec-h" id="guide-main-h">Résultats</h3>
       <div id="guide-list"></div>
     </div>
   </div>
@@ -2939,63 +2973,136 @@
   }
 
   /* ---------- Sections ---------- */
-  function renderFavSection() {
-    var sec = document.getElementById('guide-fav-sec');
-    var list = document.getElementById('guide-fav-list');
-    if (!sec || !list) return;
-    list.innerHTML = '';
-    var favs = readGuideFavs();
-    var isToday = guideSelDay === todayKey();
-    var now = Date.now();
-    var items = [];
-    favs.forEach(function (f) {
-      var gc = findGuideChan(f.id);
-      if (!gc) return;
-      var dayProgs = progsInDay(gc.programs, guideSelDay);
-      if (!dayProgs.length) return;
-      var p = null, i;
-      if (isToday) { for (i = 0; i < dayProgs.length; i++) if (dayProgs[i].stop > now) { p = dayProgs[i]; break; } }
-      else p = dayProgs[0];
-      if (!p) return;
-      items.push({ time: p.start, title: p.title, chan: gc.name, gc: gc });
-    });
-    if (!items.length) { sec.style.display = 'none'; return; }
-    items.sort(function (a, b) { return a.time - b.time; });
-    items.forEach(function (it) { list.appendChild(compactItem(it.time, it.title, it.chan, it.gc)); });
-    sec.style.display = 'block';
+  // Programme à afficher pour une chaîne guide au jour sélectionné.
+  function guideDisplayProg(gc) {
+    var isToday = guideSelDay === todayKey(), now = Date.now();
+    var dayProgs = progsInDay(gc.programs, guideSelDay);
+    if (!dayProgs.length) return null;
+    if (isToday) {
+      var info = currentNext(gc.programs);
+      if (info && info.now) return { prog: info.now, isNow: true, pct: info.pct, next: info.next, label: '' };
+      var nxt = null, i;
+      for (i = 0; i < dayProgs.length; i++) if (dayProgs[i].start >= now) { nxt = dayProgs[i]; break; }
+      if (!nxt) nxt = dayProgs[dayProgs.length - 1];
+      return { prog: nxt, isNow: false, pct: 0, next: null, label: fmtTime(nxt.start) };
+    }
+    return { prog: dayProgs[0], isNow: false, pct: 0, next: null, label: fmtTime(dayProgs[0].start) };
+  }
+  // Catégorie d'une chaîne guide (via la chaîne chargée pour le groupe, sinon le nom). Mémoïsé.
+  function gcCat(gc) {
+    if (!window.__dpCat) return null;
+    if (gc.__catMeta) return gc.__catMeta;
+    var loaded = findLoaded(gc.id);
+    gc.__catMeta = window.__dpCat.of({ name: gc.name, group: loaded ? (loaded.group || '') : '' });
+    return gc.__catMeta;
+  }
+  function guideChanHasDay(gc) { return progsInDay(gc.programs, guideSelDay).length > 0; }
+
+  function guideCard(gc) {
+    var d = guideDisplayProg(gc), cat = gcCat(gc);
+    var card = document.createElement('div');
+    card.className = 'g-card';
+    if (cat && cat.color) card.style.setProperty('--r-accent', cat.color);
+    var thumb = guideLogoNode(gc); thumb.className = 'g-thumb';
+    if (d && d.isNow) { var live = document.createElement('span'); live.className = 'g-live'; live.textContent = 'EN DIRECT'; thumb.appendChild(live); }
+    card.appendChild(thumb);
+    var body = document.createElement('div'); body.className = 'g-body';
+    var ch = document.createElement('div'); ch.className = 'g-ch'; ch.textContent = gc.name; body.appendChild(ch);
+    if (d) {
+      var pr = document.createElement('div'); pr.className = 'g-prog'; pr.textContent = d.prog.title || ''; body.appendChild(pr);
+      if (d.isNow) {
+        var bar = document.createElement('div'); bar.className = 'g-bar';
+        var f = document.createElement('span'); f.style.width = (d.pct || 0) + '%'; bar.appendChild(f); body.appendChild(bar);
+        if (d.next && d.next.title) { var nx = document.createElement('div'); nx.className = 'g-when'; nx.textContent = 'Puis ' + d.next.title; body.appendChild(nx); }
+      } else {
+        var wh = document.createElement('div'); wh.className = 'g-when'; wh.textContent = 'À ' + d.label; body.appendChild(wh);
+      }
+    }
+    card.appendChild(body);
+    card.addEventListener('click', function () { pickGuideChannel(gc); });
+    return card;
+  }
+  function makeRail(title, emoji, color, gcList) {
+    if (!gcList || !gcList.length) return null;
+    var rail = document.createElement('section');
+    var h = document.createElement('h3'); h.className = 'g-rail-h';
+    if (color) { var acc = document.createElement('span'); acc.className = 'g-accent'; acc.style.setProperty('--r-accent', color); h.appendChild(acc); }
+    if (emoji) { var em = document.createElement('span'); em.className = 'g-emoji'; em.textContent = emoji; h.appendChild(em); }
+    var tt = document.createElement('span'); tt.textContent = title; h.appendChild(tt);
+    var track = document.createElement('div'); track.className = 'g-rail-track';
+    gcList.forEach(function (gc) { track.appendChild(guideCard(gc)); });
+    rail.appendChild(h); rail.appendChild(track);
+    return rail;
   }
 
-  function renderTonightSection() {
-    var sec = document.getElementById('guide-tonight-sec');
-    var list = document.getElementById('guide-tonight-list');
-    if (!sec || !list) return;
-    list.innerHTML = '';
-    // Onglet « Ce soir » uniquement.
-    if (guideSelDay !== todayKey()) { sec.style.display = 'none'; return; }
-    var primeStart = guideSelDay + Math.round(20.5 * 3600000);
-    var primeEnd = guideSelDay + 23 * 3600000;
-    var favSet = {};
-    readGuideFavs().forEach(function (f) { if (f.id) favSet[baseId(f.id)] = 1; });
-    var HI = /film|match|foot|sport|grand|finale|direct|c[eé]r[eé]monie|gala|coupe|ligue|open|s[eé]rie|concert|spectacle/i;
-    var items = [], seen = {};
-    guideChannels.forEach(function (gc) {
-      var isFav = !!favSet[baseId(gc.id)];
-      for (var i = 0; i < gc.programs.length; i++) {
-        var p = gc.programs[i];
-        if (p.start < primeEnd && p.stop > primeStart) {
-          var hi = HI.test(p.title || '');
-          if ((isFav || hi) && !seen[gc.id]) {
-            seen[gc.id] = 1;
-            items.push({ time: p.start, title: p.title, chan: gc.name, gc: gc, fav: isFav });
-            break;
-          }
-        }
-      }
+  // Guide personnalisé en rails : ⭐ favoris, 📺 en ce moment, 🎯 pour toi, puis par catégorie.
+  function renderRails() {
+    var wrap = document.getElementById('guide-rails');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    var isToday = guideSelDay === todayKey();
+    var favSet = {}; readGuideFavs().forEach(function (f) { if (f.id) favSet[baseId(f.id)] = 1; });
+    var recentSet = {};
+    var curPid = ''; try { curPid = localStorage.getItem('dpiptv.currentProfile') || ''; } catch (e) {}
+    try { (JSON.parse(localStorage.getItem('dpiptv.recent.' + curPid) || '[]') || []).forEach(function (c) { if (c.id) recentSet[baseId(c.id)] = 1; }); } catch (e) {}
+    var tasteSet = {}; (window.__dpTastes ? window.__dpTastes.effective() : []).forEach(function (k) { tasteSet[k] = 1; });
+    var withDay = guideChannels.filter(guideChanHasDay);
+
+    // ⭐ Tes favoris
+    var favGc = [];
+    readGuideFavs().forEach(function (f) { var gc = findGuideChan(f.id); if (gc && guideChanHasDay(gc)) favGc.push(gc); });
+    var r1 = makeRail('Tes favoris', '⭐', '#f5a623', favGc);
+    if (r1) wrap.appendChild(r1);
+
+    // 📺 En ce moment (aujourd'hui) — priorité favoris + goûts
+    if (isToday) {
+      var live = withDay.filter(function (gc) { var info = currentNext(gc.programs); return info && info.now; });
+      live.sort(function (a, b) {
+        function sc(gc) { var c = gcCat(gc); return (favSet[baseId(gc.id)] ? 2 : 0) + ((c && tasteSet[c.key]) ? 1 : 0); }
+        return sc(b) - sc(a) || a.name.localeCompare(b.name);
+      });
+      var r2 = makeRail('En ce moment', '📺', '#e50914', live.slice(0, 24));
+      if (r2) wrap.appendChild(r2);
+    }
+
+    // 🎯 Pour toi — catégories aimées + déjà regardées (hors favoris déjà montrés)
+    var pourToi = withDay.filter(function (gc) {
+      if (favSet[baseId(gc.id)]) return false;
+      var c = gcCat(gc);
+      return (c && tasteSet[c.key]) || recentSet[baseId(gc.id)];
     });
-    if (!items.length) { sec.style.display = 'none'; return; }
-    items.sort(function (a, b) { return (b.fav ? 1 : 0) - (a.fav ? 1 : 0) || a.time - b.time; });
-    items.slice(0, 12).forEach(function (it) { list.appendChild(compactItem(it.time, it.title, it.chan, it.gc)); });
-    sec.style.display = 'block';
+    pourToi.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    var r3 = makeRail('Pour toi', '🎯', '#4f8cff', pourToi.slice(0, 24));
+    if (r3) wrap.appendChild(r3);
+
+    // Un rail par catégorie — goûts d'abord, puis par nombre de chaînes.
+    var byCat = {};
+    withDay.forEach(function (gc) { var c = gcCat(gc); if (!c) return; (byCat[c.key] = byCat[c.key] || []).push(gc); });
+    var order = (window.__dpCat ? window.__dpCat.all : []).map(function (m) { return m.key; });
+    order.sort(function (a, b) {
+      var ta = tasteSet[a] ? 1 : 0, tb = tasteSet[b] ? 1 : 0;
+      if (ta !== tb) return tb - ta;
+      return (byCat[b] ? byCat[b].length : 0) - (byCat[a] ? byCat[a].length : 0);
+    });
+    order.forEach(function (key) {
+      var list = byCat[key]; if (!list || !list.length) return;
+      var m = window.__dpCat.meta(key);
+      list.sort(function (a, b) { return a.name.localeCompare(b.name); });
+      var r = makeRail(m.label, m.emoji, m.color, list.slice(0, 30));
+      if (r) wrap.appendChild(r);
+    });
+    // « Autres » (non catégorisées)
+    var otherKey = window.__dpCat ? window.__dpCat.other.key : 'other';
+    if (byCat[otherKey] && byCat[otherKey].length) {
+      byCat[otherKey].sort(function (a, b) { return a.name.localeCompare(b.name); });
+      var ro = makeRail(window.__dpCat.other.label, window.__dpCat.other.emoji, window.__dpCat.other.color, byCat[otherKey].slice(0, 30));
+      if (ro) wrap.appendChild(ro);
+    }
+
+    if (!wrap.children.length) {
+      var empt = document.createElement('div'); empt.className = 'guide-empty';
+      empt.textContent = 'Aucun programme ce jour-là.'; wrap.appendChild(empt);
+    }
   }
 
   function renderMainList() {
@@ -3072,18 +3179,42 @@
     });
   }
 
+  // Éditeur de goûts : chips par catégorie, allumées si le goût est actif (auto ou manuel).
+  function renderTasteChips() {
+    var el = document.getElementById('guide-tastes');
+    if (!el) return;
+    var curPid = ''; try { curPid = localStorage.getItem('dpiptv.currentProfile') || ''; } catch (e) {}
+    if (!curPid || !window.__dpCat || !window.__dpTastes) { el.style.display = 'none'; return; }
+    el.innerHTML = '';
+    var eff = {}; (window.__dpTastes.effective() || []).forEach(function (k) { eff[k] = 1; });
+    var lbl = document.createElement('span'); lbl.className = 'gt-label'; lbl.textContent = '🎯 Mes goûts :'; el.appendChild(lbl);
+    window.__dpCat.all.forEach(function (m) {
+      var b = document.createElement('button');
+      b.className = 'gt-chip' + (eff[m.key] ? ' on' : '');
+      b.style.setProperty('--chip-c', m.color);
+      b.innerHTML = '<span>' + m.emoji + '</span><span>' + m.label + '</span>';
+      b.addEventListener('click', function () {
+        var cur = window.__dpTastes.manual().slice();
+        var i = cur.indexOf(m.key);
+        if (i >= 0) cur.splice(i, 1); else cur.push(m.key);
+        window.__dpTastes.setManual(null, cur);
+        renderGuide();
+      });
+      el.appendChild(b);
+    });
+    el.style.display = 'flex';
+  }
+
   function renderGuide() {
     var retry = document.getElementById('guide-retry');
     var mainSec = document.getElementById('guide-main-sec');
-    var favSec = document.getElementById('guide-fav-sec');
-    var tonightSec = document.getElementById('guide-tonight-sec');
+    var railsEl = document.getElementById('guide-rails');
     var daysEl = document.getElementById('guide-days');
     var listEl = document.getElementById('guide-list');
     if (retry) retry.style.display = guideAvailable ? 'none' : (guideTried ? 'block' : 'none');
 
     if (!guideAvailable) {
-      if (favSec) favSec.style.display = 'none';
-      if (tonightSec) tonightSec.style.display = 'none';
+      if (railsEl) { railsEl.innerHTML = ''; railsEl.style.display = 'none'; }
       if (daysEl) daysEl.innerHTML = '';
       if (mainSec) mainSec.style.display = 'block';
       if (listEl) {
@@ -3097,12 +3228,21 @@
       }
       return;
     }
-    if (mainSec) mainSec.style.display = 'block';
     if (guideSelDay == null) initGuideDay();
     renderDays();
-    renderFavSection();
-    renderTonightSection();
-    renderMainList();
+    renderTasteChips();
+    var q = (guideQ || '').trim();
+    if (q) {
+      // Mode recherche : liste plate filtrée.
+      if (railsEl) railsEl.style.display = 'none';
+      if (mainSec) mainSec.style.display = 'block';
+      renderMainList();
+    } else {
+      // Mode découverte : rails personnalisés.
+      if (railsEl) railsEl.style.display = 'flex';
+      if (mainSec) mainSec.style.display = 'none';
+      renderRails();
+    }
   }
 
   function openGuide() {
@@ -3130,7 +3270,7 @@
     clearTimeout(guideSearchTimer);
     guideSearchTimer = setTimeout(function () {
       guideQ = guideSearchEl.value.trim();
-      if (guideAvailable) renderMainList();
+      if (guideAvailable) renderGuide();
     }, 150);
   });
 
@@ -3142,10 +3282,7 @@
     var d = Number(b.getAttribute('data-day'));
     if (isNaN(d)) return;
     guideSelDay = d;
-    renderDays();
-    renderFavSection();
-    renderTonightSection();
-    renderMainList();
+    renderGuide();
   });
 
   var navHome = document.getElementById('nav-home');
@@ -3453,6 +3590,7 @@
     writeProfiles(profs);
     try { localStorage.removeItem('dpiptv.fav.' + id); } catch (e) {}
     try { localStorage.removeItem('dpiptv.recent.' + id); } catch (e) {}
+    try { localStorage.removeItem('dpiptv.tastes.' + id); } catch (e) {}
     if (currentProfileId === id) {
       currentProfileId = null;
       try { localStorage.removeItem('dpiptv.currentProfile'); } catch (e) {}
@@ -3488,7 +3626,7 @@
     if (!profs.length) { alert('Aucun profil à réinitialiser.'); return; }
     if (!confirm('Supprimer TOUS les profils de cet appareil (' + profs.length + ') et leurs favoris/récent ? Cette action est définitive sur ce téléphone.')) return;
     profs.forEach(function (p) {
-      try { localStorage.removeItem('dpiptv.fav.' + p.id); localStorage.removeItem('dpiptv.recent.' + p.id); } catch (e) {}
+      try { localStorage.removeItem('dpiptv.fav.' + p.id); localStorage.removeItem('dpiptv.recent.' + p.id); localStorage.removeItem('dpiptv.tastes.' + p.id); } catch (e) {}
     });
     try { localStorage.removeItem('dpiptv.profiles'); localStorage.removeItem('dpiptv.currentProfile'); } catch (e) {}
     currentProfileId = null;
@@ -3560,7 +3698,11 @@
     var profs = readProfiles();
     var pd = {};
     profs.forEach(function (p) {
-      pd[p.id] = { fav: syncParse('dpiptv.fav.' + p.id), recent: syncParse('dpiptv.recent.' + p.id) };
+      pd[p.id] = {
+        fav: syncParse('dpiptv.fav.' + p.id),
+        recent: syncParse('dpiptv.recent.' + p.id),
+        tastes: syncParse('dpiptv.tastes.' + p.id)
+      };
     });
     return { v: 1, profiles: profs, profileData: pd };
   }
@@ -3576,6 +3718,7 @@
         var d = pd[p.id] || {};
         try { localStorage.setItem('dpiptv.fav.' + p.id, JSON.stringify(d.fav || [])); } catch (e) {}
         try { localStorage.setItem('dpiptv.recent.' + p.id, JSON.stringify(d.recent || [])); } catch (e) {}
+        if (d.tastes) try { localStorage.setItem('dpiptv.tastes.' + p.id, JSON.stringify(d.tastes || [])); } catch (e) {}
       });
       // Si le profil courant de CET appareil n'existe plus après synchro, on le libère.
       var ids = {}; payload.profiles.forEach(function (p) { if (p && p.id) ids[p.id] = 1; });
@@ -3791,6 +3934,42 @@
     injectFavRail();
   }
 
+  /* ---------------- Goûts par profil (auto + réglable) ----------------
+     Les goûts (Sport, Cinéma, Info…) personnalisent le guide « Pour toi ».
+     Ils se DÉDUISENT automatiquement des favoris + chaînes regardées, et peuvent
+     être ajustés manuellement par le profil. Synchronisés dans le snapshot cloud. */
+  var TASTE_MIN = 2; // poids minimum (favori=2, récent=1) pour qu'un goût auto compte
+  function readTastes(pid) {
+    var id = pid || currentProfileId; if (!id) return [];
+    try { return JSON.parse(localStorage.getItem('dpiptv.tastes.' + id) || '[]') || []; } catch (e) { return []; }
+  }
+  function writeTastes(pid, arr) {
+    var id = pid || currentProfileId; if (!id) return;
+    try { localStorage.setItem('dpiptv.tastes.' + id, JSON.stringify(arr || [])); } catch (e) {}
+    if (window.__dpSync && !window.__syncApplying) window.__dpSync.push();
+  }
+  function autoTastes(pid) {
+    var id = pid || currentProfileId; if (!id || !window.__dpCat) return [];
+    var counts = {};
+    function tally(list, w) {
+      (list || []).forEach(function (c) {
+        var k = window.__dpCat.keyOf({ name: c.name, group: c.group });
+        if (k && k !== 'other') counts[k] = (counts[k] || 0) + w;
+      });
+    }
+    try { tally(JSON.parse(localStorage.getItem('dpiptv.fav.' + id) || '[]'), 2); } catch (e) {}
+    try { tally(JSON.parse(localStorage.getItem('dpiptv.recent.' + id) || '[]'), 1); } catch (e) {}
+    var keys = Object.keys(counts).filter(function (k) { return counts[k] >= TASTE_MIN; });
+    keys.sort(function (a, b) { return counts[b] - counts[a]; });
+    return keys;
+  }
+  function effectiveTastes(pid) {
+    var out = [], seen = {};
+    readTastes(pid).concat(autoTastes(pid)).forEach(function (k) { if (k && !seen[k]) { seen[k] = 1; out.push(k); } });
+    return out;
+  }
+  window.__dpTastes = { manual: readTastes, setManual: writeTastes, auto: autoTastes, effective: effectiveTastes };
+
   // Décoration post-render : enveloppe window.__afterRender (railify) sans le réécrire.
   var prevAfterRender = window.__afterRender;
   window.__afterRender = function (globalMode) {
@@ -3815,55 +3994,6 @@
   }
   updateAvatarMini();
   if (!currentProfileId) openProfileOverlay();
-})();
-</script>
-<script>
-/* ---------------- Diagnostic à distance (temporaire) ----------------
-   Capture les logs de lecture (console + erreurs + statut) et les envoie au
-   worker (clé KV « sync:dpdbg ») pour dépannage. Aucune donnée sensible autre
-   que les liens de flux et messages d'erreur. À retirer une fois le bug réglé. */
-(function () {
-  var BUF = [], MAX = 250;
-  function stamp() { try { return new Date().toISOString().slice(11, 19); } catch (e) { return ''; } }
-  function fmt(a) {
-    if (a instanceof Error) return a.name + ': ' + a.message;
-    if (a && typeof a === 'object') { try { return JSON.stringify(a).slice(0, 400); } catch (e) { return String(a); } }
-    return String(a);
-  }
-  function push(kind, args) {
-    try {
-      var line = '[' + stamp() + '] ' + kind + ': ' + Array.prototype.map.call(args, fmt).join(' ');
-      BUF.push(line);
-      if (BUF.length > MAX) BUF.shift();
-      schedule();
-    } catch (e) {}
-  }
-  ['log', 'warn', 'error'].forEach(function (k) {
-    var orig = console[k] ? console[k].bind(console) : function () {};
-    console[k] = function () { try { orig.apply(null, arguments); } catch (e) {} push(k.toUpperCase(), arguments); };
-  });
-  window.addEventListener('error', function (e) {
-    push('JSERR', [(e && e.message) || 'error', (e && e.filename ? e.filename : '') + ':' + (e && e.lineno ? e.lineno : '')]);
-  });
-  window.addEventListener('unhandledrejection', function (e) {
-    push('REJECT', [e && e.reason && e.reason.message ? e.reason.message : (e && e.reason)]);
-  });
-  function base() {
-    var tpl; try { tpl = localStorage.getItem('dpiptv.proxyTpl'); } catch (e) { tpl = null; }
-    if (tpl === null || !tpl) tpl = 'https://poly-proxy.palhadaniel-elec.workers.dev/?url={url}';
-    try { return new URL(tpl).origin + '/sync'; } catch (e) { return ''; }
-  }
-  var timer = null;
-  function schedule() { if (timer) return; timer = setTimeout(flush, 1500); }
-  function flush() {
-    timer = null;
-    var b = base(); if (!b) return;
-    var prof = ''; try { prof = localStorage.getItem('dpiptv.currentProfile') || ''; } catch (e) {}
-    var body = JSON.stringify({ ua: navigator.userAgent, profile: prof, at: Date.now(), lines: BUF.slice(-150) });
-    try { fetch(b + '?code=dpdbg', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: body }).catch(function () {}); } catch (e) {}
-  }
-  window.__dpdbg = { log: function (m) { push('APP', [m]); }, flush: flush, buffer: function () { return BUF.slice(); } };
-  push('APP', ['diagnostic actif — ' + (navigator.userAgent || '')]);
 })();
 </script>
 </body>
