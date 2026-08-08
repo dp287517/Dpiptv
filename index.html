@@ -534,12 +534,22 @@
   #profile-btn { background: none; border: none; padding: 3px; cursor: pointer; display: inline-flex; }
   .profile-overlay {
     position: fixed; inset: 0; z-index: 200; display: none;
-    align-items: center; justify-content: center;
+    align-items: flex-start; justify-content: center;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
     background: radial-gradient(1000px 500px at 50% -80px, rgba(229,9,20,.18), transparent 70%), rgba(8,8,11,.98);
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   }
   .profile-overlay.visible { display: flex; }
-  .profile-inner { text-align: center; padding: 24px; width: 100%; max-width: 640px; }
+  .profile-inner {
+    text-align: center; padding: 24px; width: 100%; max-width: 640px;
+    margin: auto; padding-top: max(40px, env(safe-area-inset-top));
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
+  }
+  .profile-admin-link {
+    margin-top: 26px; background: none; border: none; color: var(--muted);
+    font-size: .8rem; cursor: pointer; opacity: .8; padding: 8px;
+  }
+  body:not(.guest) .profile-admin-link { display: none; }
   .profile-h { font-size: 1.9rem; font-weight: 700; margin-bottom: 28px; color: #fff; }
   .profile-grid { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; }
   .profile-tile {
@@ -2952,10 +2962,11 @@
     <h1 class="profile-h">Qui regarde&nbsp;?</h1>
     <div id="profile-grid" class="profile-grid"></div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-      <button id="profile-manage" class="profile-manage" type="button">Gérer les profils</button>
-      <button id="profile-import" class="profile-manage" type="button">⤵ Importer mes profils</button>
-      <button id="profile-reset" class="profile-manage danger" type="button">🗑 Tout réinitialiser</button>
+      <button id="profile-manage" class="profile-manage admin-only" type="button">Gérer les profils</button>
+      <button id="profile-import" class="profile-manage admin-only" type="button">⤵ Importer mes profils</button>
+      <button id="profile-reset" class="profile-manage danger admin-only" type="button">🗑 Tout réinitialiser</button>
     </div>
+    <button id="profile-admin" class="profile-admin-link" type="button">🔒 Espace admin</button>
   </div>
 </div>
 
@@ -3073,26 +3084,28 @@
   }
   applyAdminState();
 
-  var brand = document.querySelector('.brand');
-  if (brand) {
-    brand.style.cursor = 'pointer';
-    brand.addEventListener('click', function () {
-      if (isAdmin()) return;
-      var pw = prompt('🔒 Mode admin — mot de passe :');
-      if (pw == null) return;
-      sha256Hex(pw).then(function (h) {
-        if (h === ADMIN_HASH) {
-          localStorage.setItem('dpiptv.admin', '1');
-          // Débloque aussi « Mes liens » côté moteur pour éviter un 2e mot de passe.
-          localStorage.setItem('dpiptv.unlocked', '1');
-          body.classList.remove('guest');
-          location.reload();
-        } else {
-          alert('Mot de passe incorrect.');
-        }
-      }).catch(function () { alert('Vérification impossible sur ce navigateur.'); });
-    });
+  function promptAdmin() {
+    if (isAdmin()) return;
+    var pw = prompt('🔒 Mode admin — mot de passe :');
+    if (pw == null) return;
+    sha256Hex(pw).then(function (h) {
+      if (h === ADMIN_HASH) {
+        localStorage.setItem('dpiptv.admin', '1');
+        // Débloque aussi « Mes liens » côté moteur pour éviter un 2e mot de passe.
+        localStorage.setItem('dpiptv.unlocked', '1');
+        body.classList.remove('guest');
+        location.reload();
+      } else {
+        alert('Mot de passe incorrect.');
+      }
+    }).catch(function () { alert('Vérification impossible sur ce navigateur.'); });
   }
+
+  var brand = document.querySelector('.brand');
+  if (brand) { brand.style.cursor = 'pointer'; brand.addEventListener('click', promptAdmin); }
+  // Accès admin discret depuis l'écran « Qui regarde ? » (le logo DP y est masqué).
+  var profileAdminBtn = document.getElementById('profile-admin');
+  if (profileAdminBtn) profileAdminBtn.addEventListener('click', promptAdmin);
 
   var adminLogout = document.getElementById('admin-logout');
   if (adminLogout) adminLogout.addEventListener('click', function () {
