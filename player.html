@@ -655,6 +655,64 @@
   }
   .zap-hint.show { opacity: 1; }
 
+  /* ============ Multivue (mosaïque sport) ============ */
+  .multi-overlay {
+    position: fixed; inset: 0; z-index: 60; display: none; flex-direction: column;
+    background: #05070c;
+  }
+  .multi-overlay.visible { display: flex; }
+  .multi-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: max(12px, env(safe-area-inset-top)) 14px 10px;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .multi-head h2 { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; color: #fff; }
+  .multi-head h2 svg { width: 20px; height: 20px; }
+  .multi-grid {
+    flex: 1; min-height: 0; display: grid; gap: 6px; padding: 8px;
+    grid-auto-rows: 1fr; overflow-y: auto;
+  }
+  .multi-grid[data-n="1"], .multi-grid[data-n="2"] { grid-template-columns: 1fr; }
+  .multi-grid[data-n="3"], .multi-grid[data-n="4"] { grid-template-columns: 1fr 1fr; }
+  .mv-cell {
+    position: relative; background: #0c0f16; border: 1px solid var(--surface3); border-radius: 12px;
+    overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content: center;
+  }
+  .mv-cell.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+  .mv-cell video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+  .mv-label {
+    position: absolute; left: 8px; bottom: 8px; max-width: 70%;
+    background: rgba(0,0,0,.6); color: #fff; font-size: .72rem; font-weight: 600;
+    padding: 3px 8px; border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mv-cell.active .mv-label::before { content: '🔊 '; }
+  .mv-cell:not(.active) .mv-label::before { content: '🔇 '; }
+  .mv-x {
+    position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.18); color: #fff;
+    font-size: 1rem; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .mv-add {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    background: var(--surface); border: 1px dashed var(--surface3); color: var(--muted);
+    font-size: .85rem; cursor: pointer; border-radius: 12px;
+  }
+  .mv-add span:first-child { font-size: 1.8rem; line-height: 1; }
+  .multi-picker {
+    position: absolute; inset: 0; z-index: 61; display: none; flex-direction: column;
+    background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  }
+  .multi-picker.open { display: flex; }
+  .mp-head { display: flex; gap: 8px; padding: max(12px, env(safe-area-inset-top)) 14px 10px; }
+  #mv-picker-search { flex: 1; }
+  .mv-picker-list { flex: 1; overflow-y: auto; padding: 4px 10px 20px; display: flex; flex-direction: column; gap: 4px; }
+  .mv-pick {
+    text-align: left; background: var(--surface2); border: 1px solid var(--surface3); color: #e8eefc;
+    padding: 11px 14px; border-radius: 10px; font-size: .9rem; cursor: pointer;
+  }
+  .mv-pick:hover { border-color: var(--accent); }
+  .mv-pick .mv-pick-g { color: var(--muted); font-size: .74rem; margin-top: 2px; }
+
   /* Croix de suppression + puce « Mes liens » réservées admin */
   body.guest .mini-btn.hide { display: none !important; }
 
@@ -767,6 +825,7 @@
   <nav class="top-nav">
     <button class="nav-link active" id="nav-home" type="button">Accueil</button>
     <button class="nav-link" id="guide-btn" type="button"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>Guide</button>
+    <button class="nav-link" id="multi-btn" type="button"><svg class="bic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Multi</button>
   </nav>
   <div class="top-actions">
     <button id="profile-btn" title="Changer de profil"><span class="avatar-mini" id="avatar-mini">?</span></button>
@@ -2641,6 +2700,140 @@
     document.head.appendChild(s);
   })();
 
+  /* ---------------- Multivue (mosaïque sport) ----------------
+     Plusieurs chaînes en simultané. Chaque cellule a son propre moteur
+     (HLS/MPEG-TS/DASH) ; une seule a le son (celle « active »). */
+  function mvAttach(video, ch, useProxy) {
+    var kind = detectKind(ch.url);
+    var src = useProxy ? proxify(ch.url) : ch.url;
+    var handle = { destroy: function () {} };
+    function retryProxy() { if (!useProxy && proxyReady()) { try { handle.destroy(); } catch (e) {} var h = mvAttach(video, ch, true); handle.destroy = h.destroy; } }
+    try {
+      if (kind === 'dash' && window.dashjs) {
+        var d = dashjs.MediaPlayer().create();
+        d.initialize(video, src, true);
+        d.on(dashjs.MediaPlayer.events.ERROR, retryProxy);
+        handle.destroy = function () { try { d.reset(); } catch (e) {} };
+        return handle;
+      }
+      if (kind === 'mpegts' && window.mpegts && window.mpegts.isSupported && window.mpegts.isSupported()) {
+        var m = window.mpegts.createPlayer({ type: 'mpegts', isLive: true, url: src }, { enableWorker: true, liveBufferLatencyChasing: true });
+        m.attachMediaElement(video); m.load();
+        m.on(window.mpegts.Events.ERROR, retryProxy);
+        handle.destroy = function () { try { m.destroy(); } catch (e) {} };
+        return handle;
+      }
+      if (window.Hls && Hls.isSupported()) {
+        var cfg = { liveSyncDurationCount: 6, backBufferLength: 30, manifestLoadingMaxRetry: 2, manifestLoadingRetryDelay: 500, levelLoadingMaxRetry: 4 };
+        if (useProxy) { var L = getProxyLoader(); if (L) { cfg.loader = L; cfg.pLoader = L; cfg.fLoader = L; } }
+        var hls = new Hls(cfg); hls.loadSource(src); hls.attachMedia(video);
+        hls.on(Hls.Events.ERROR, function (_e, data) { if (data && data.fatal) retryProxy(); });
+        handle.destroy = function () { try { hls.destroy(); } catch (e) {} };
+        return handle;
+      }
+      video.src = src;
+      handle.destroy = function () { try { video.removeAttribute('src'); video.load(); } catch (e) {} };
+    } catch (e) {}
+    return handle;
+  }
+
+  var MV_MAX = 4;
+  var mvCells = [];
+  function mvRender() {
+    var mvGrid = document.getElementById('multi-grid');
+    if (!mvGrid) return;
+    mvGrid.setAttribute('data-n', String(Math.max(1, mvCells.length)));
+    mvGrid.innerHTML = '';
+    mvCells.forEach(function (cell, i) {
+      var w = document.createElement('div');
+      w.className = 'mv-cell' + (cell.active ? ' active' : '');
+      w.appendChild(cell.video);
+      var lbl = document.createElement('div'); lbl.className = 'mv-label'; lbl.textContent = cell.ch.name; w.appendChild(lbl);
+      var x = document.createElement('button'); x.className = 'mv-x'; x.type = 'button'; x.textContent = '×';
+      x.addEventListener('click', function (e) { e.stopPropagation(); mvRemove(i); });
+      w.appendChild(x);
+      w.addEventListener('click', function () { mvActivate(i); });
+      mvGrid.appendChild(w);
+    });
+    if (mvCells.length < MV_MAX) {
+      var add = document.createElement('button'); add.className = 'mv-cell mv-add'; add.type = 'button';
+      add.innerHTML = '<span>＋</span><span>Ajouter une chaîne</span>';
+      add.addEventListener('click', mvOpenPicker);
+      mvGrid.appendChild(add);
+    }
+  }
+  function mvActivate(i) {
+    mvCells.forEach(function (c, idx) { c.active = (idx === i); try { c.video.muted = (idx !== i); } catch (e) {} });
+    mvRender();
+  }
+  function mvAdd(ch) {
+    if (mvCells.length >= MV_MAX) return;
+    var v = document.createElement('video');
+    v.autoplay = true; v.muted = true; v.setAttribute('playsinline', ''); v.playsInline = true;
+    var handle = mvAttach(v, ch, proxyMode === 'always' && proxyReady());
+    var first = mvCells.length === 0;
+    var cell = { ch: ch, video: v, handle: handle, active: first };
+    if (first) v.muted = false;
+    mvCells.push(cell);
+    mvRender();
+    v.play().catch(function () {});
+  }
+  function mvRemove(i) {
+    var c = mvCells[i]; if (!c) return;
+    try { c.handle.destroy(); } catch (e) {}
+    try { if (c.video.parentNode) c.video.parentNode.removeChild(c.video); } catch (e) {}
+    mvCells.splice(i, 1);
+    if (mvCells.length && !mvCells.some(function (x) { return x.active; })) { mvCells[0].active = true; try { mvCells[0].video.muted = false; } catch (e) {} }
+    mvRender();
+  }
+  function mvDestroyAll() { mvCells.forEach(function (c) { try { c.handle.destroy(); } catch (e) {} }); mvCells = []; }
+  function mvOpen() {
+    var mvOverlay = document.getElementById('multi-overlay');
+    if (!mvOverlay) return;
+    // Couper le lecteur simple pour éviter deux sources audio.
+    try { stopPlayback(); markPlaying(null); nowPlayingEl.classList.remove('visible'); document.body.classList.remove('playing'); } catch (e) {}
+    mvOverlay.classList.add('visible');
+    mvRender();
+  }
+  function mvClose() { var mvOverlay = document.getElementById('multi-overlay'); if (mvOverlay) mvOverlay.classList.remove('visible'); mvDestroyAll(); mvRender(); }
+  // Sélecteur de chaîne
+  function mvOpenPicker() {
+    var picker = document.getElementById('multi-picker'); if (!picker) return;
+    picker.classList.add('open');
+    mvRenderPicker('');
+    var s = document.getElementById('mv-picker-search'); if (s) { s.value = ''; setTimeout(function () { s.focus(); }, 50); }
+  }
+  function mvRenderPicker(q) {
+    var listEl = document.getElementById('mv-picker-list'); if (!listEl) return;
+    listEl.innerHTML = '';
+    q = (q || '').toLowerCase();
+    var src = channels.filter(function (c) { return !hidden[c.url]; });
+    if (q) src = src.filter(function (c) { return c.name.toLowerCase().indexOf(q) >= 0 || (c.group || '').toLowerCase().indexOf(q) >= 0; });
+    src.slice(0, 300).forEach(function (ch) {
+      var b = document.createElement('button'); b.className = 'mv-pick'; b.type = 'button';
+      var nm = document.createElement('div'); nm.textContent = ch.name; b.appendChild(nm);
+      if (ch.group) { var g = document.createElement('div'); g.className = 'mv-pick-g'; g.textContent = ch.group; b.appendChild(g); }
+      b.addEventListener('click', function () {
+        mvAdd(ch);
+        document.getElementById('multi-picker').classList.remove('open');
+      });
+      listEl.appendChild(b);
+    });
+    if (!src.length) { var e = document.createElement('div'); e.className = 'guide-empty'; e.textContent = 'Aucune chaîne — charge d’abord un pays.'; listEl.appendChild(e); }
+  }
+  // Le DOM de la multivue est parsé APRÈS ce script → on câble au DOMContentLoaded.
+  function mvWire() {
+    var multiBtn = document.getElementById('multi-btn');
+    if (multiBtn) multiBtn.addEventListener('click', mvOpen);
+    var multiClose = document.getElementById('multi-close');
+    if (multiClose) multiClose.addEventListener('click', mvClose);
+    var mvPickClose = document.getElementById('mv-picker-close');
+    if (mvPickClose) mvPickClose.addEventListener('click', function () { document.getElementById('multi-picker').classList.remove('open'); });
+    var mvSearch = document.getElementById('mv-picker-search');
+    if (mvSearch) { var mvST = null; mvSearch.addEventListener('input', function () { clearTimeout(mvST); mvST = setTimeout(function () { mvRenderPicker(mvSearch.value); }, 150); }); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mvWire); else mvWire();
+
   var switchSrcBtn = document.getElementById('switch-src');
   if (switchSrcBtn) switchSrcBtn.addEventListener('click', function () {
     if (!currentPlaying) return;
@@ -2671,6 +2864,20 @@
   loadPlaylist('fr');
 })();
 </script>
+<div id="multi-overlay" class="multi-overlay">
+  <div class="multi-head">
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Multivue</h2>
+    <button class="action-btn" id="multi-close" type="button">✕ Fermer</button>
+  </div>
+  <div id="multi-grid" class="multi-grid" data-n="0"></div>
+  <div id="multi-picker" class="multi-picker">
+    <div class="mp-head">
+      <input type="search" id="mv-picker-search" placeholder="Ajouter une chaîne — rechercher…" autocomplete="off">
+      <button class="action-btn" id="mv-picker-close" type="button">✕</button>
+    </div>
+    <div id="mv-picker-list" class="mv-picker-list"></div>
+  </div>
+</div>
 <div id="guide-overlay" class="sheet-overlay guide-overlay">
   <div class="sheet guide-sheet">
     <div class="guide-top">
