@@ -94,6 +94,7 @@
     background: #000;
   }
   #now-playing {
+    position: relative;
     padding: 9px 16px;
     background: var(--surface);
     font-size: .9rem;
@@ -114,11 +115,15 @@
   #buf { display: none; color: var(--warn); font-size: .8rem; }
   #now-playing.buffering #buf { display: inline; }
   #now-playing.buffering #now-playing-name { opacity: .6; }
-  #switch-src {
-    flex: none; margin-left: 8px; padding: 4px 10px; border-radius: 999px;
+  /* Outils sous la vidéo (ne recouvrent PAS les contrôles natifs) */
+  .np-tool, #switch-src {
+    flex: none; padding: 4px 10px; border-radius: 999px;
     background: var(--surface2); border: 1px solid var(--surface3); color: #e8eefc;
-    font-size: .74rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center;
+    font-size: .74rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
   }
+  #switch-src { margin-left: 8px; }
+  .np-tool.on { background: var(--accent); border-color: transparent; color: #fff; }
+  #pt-sleep { min-width: 34px; justify-content: center; }
   #switch-src:active { transform: scale(.95); }
   @keyframes pulse { 50% { opacity: .3; } }
 
@@ -207,6 +212,12 @@
   }
   .cat-chip:active { transform: scale(.96); }
   .cat-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+  /* Icônes catégorie au trait (gabarit toolbar), réutilisées partout */
+  .dp-cic { display: inline-flex; align-items: center; justify-content: center; }
+  .dp-cic svg { width: 16px; height: 16px; display: block; }
+  .g-rail-h .dp-cic svg { width: 19px; height: 19px; }
+  .np-tool .dp-cic svg { width: 15px; height: 15px; }
+  .g-bell .dp-cic svg { width: 14px; height: 14px; }
   .cat-chip.active { background: color-mix(in srgb, var(--chip-c, #4f8cff) 26%, transparent); border-color: var(--chip-c, #4f8cff); color: #fff; }
   .spinner {
     width: 26px; height: 26px;
@@ -628,21 +639,9 @@
   #player-close svg { width: 18px; height: 18px; }
   #player-close:hover { background: rgba(60,60,72,.7); }
 
-  /* Outils du lecteur : PiP / AirPlay / Cast / Sommeil */
-  #player-tools { position: absolute; top: 10px; left: 10px; z-index: 5; display: flex; gap: 8px; }
-  .pt-btn {
-    width: 38px; height: 38px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--glass-strong);
-    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--glass-brd); box-shadow: var(--glass-hi), 0 3px 12px rgba(0,0,0,.5);
-    color: #fff; cursor: pointer; -webkit-tap-highlight-color: transparent;
-  }
-  .pt-btn svg { width: 19px; height: 19px; }
-  .pt-btn:hover { background: rgba(60,60,72,.7); }
-  .pt-btn.on { background: var(--accent); border-color: transparent; }
+  /* Menu minuterie de sommeil : s'ouvre AU-DESSUS de la barre (sous la vidéo) */
   .sleep-menu {
-    position: absolute; top: 54px; left: 10px; z-index: 6; display: none; flex-direction: column;
+    position: absolute; bottom: calc(100% + 6px); right: 12px; z-index: 6; display: none; flex-direction: column;
     background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
     border: 1px solid var(--glass-brd); border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.5);
   }
@@ -784,17 +783,10 @@
 
 <div class="player-wrap" id="player-wrap">
   <button id="player-close" title="Fermer le lecteur" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-  <div id="player-tools">
-    <button id="pt-pip" class="pt-btn" type="button" title="Mini-lecteur (Picture-in-Picture)" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="2"/><rect x="12" y="11" width="7" height="5" rx="1" fill="currentColor"/></svg></button>
-    <button id="pt-airplay" class="pt-btn" type="button" title="AirPlay (Apple TV / Mac)" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-2"/><path d="M12 15l5 6H7l5-6z" fill="currentColor"/></svg></button>
-    <button id="pt-cast" class="pt-btn" type="button" title="Caster sur la TV (Chromecast)" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8V5a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-7"/><path d="M2 12a6 6 0 0 1 6 6M2 16a2 2 0 0 1 2 2"/><path d="M2 20h.01"/></svg></button>
-    <button id="pt-sleep" class="pt-btn" type="button" title="Minuterie de sommeil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg></button>
-  </div>
-  <div id="sleep-menu" class="sleep-menu"></div>
   <video id="video" controls playsinline autoplay x-webkit-airplay="allow"></video>
   <div id="zap-hint" class="zap-hint"></div>
 </div>
-<div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span><button id="switch-src" type="button" title="Essayer une autre source (si ça rame ou ne marche pas)" style="display:none">↻ Source</button><span id="buf">⏳ mise en mémoire tampon…</span></div>
+<div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span><button id="switch-src" class="np-tool" type="button" title="Essayer une autre source (si ça rame ou ne marche pas)" style="display:none">↻ Source</button><button id="pt-cast" class="np-tool" type="button" title="Caster sur la TV (Chromecast)" style="display:none"><span class="dp-cic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><path d="M3 12.5a5.5 5.5 0 0 1 5.5 5.5M3 16.5a1.5 1.5 0 0 1 1.5 1.5M3 20h.01"/></svg></span><span>TV</span></button><button id="pt-sleep" class="np-tool" type="button" title="Minuterie de sommeil"><span class="dp-cic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M8.5 3 5.5 5.5M15.5 3l3 2.5"/></svg></span></button><div id="sleep-menu" class="sleep-menu"></div><span id="buf">⏳ mise en mémoire tampon…</span></div>
 <div id="status"></div>
 
 <!-- Recherche : élément gardé tôt (pour le moteur), déplacé dans la barre du bas par JS -->
@@ -1430,25 +1422,22 @@
     // Trie par nombre décroissant, catégorie active toujours visible.
     order.sort(function (a, b) { return counts[b] - counts[a]; });
     bar.innerHTML = '';
-    function chip(key, label, emoji, color, active) {
+    function chip(key, label, iconKey, color, active) {
       var b = document.createElement('button');
       b.className = 'cat-chip' + (active ? ' active' : '');
       if (color) b.style.setProperty('--chip-c', color);
-      var h = '';
-      if (emoji) h += '<span>' + emoji + '</span>';
-      else if (color) h += '<span class="dot" style="background:' + color + '"></span>';
-      h += '<span>' + label + '</span>';
-      b.innerHTML = h;
+      if (iconKey) b.appendChild(window.__dpCat.icon(iconKey));
+      var lbl = document.createElement('span'); lbl.textContent = label; b.appendChild(lbl);
       b.addEventListener('click', function () {
         activeCat = (activeCat === key) ? null : key;
         render(searchEl.value);
       });
       return b;
     }
-    bar.appendChild(chip(null, 'Tout', '', '', !activeCat));
+    bar.appendChild(chip(null, 'Tout', null, '', !activeCat));
     order.forEach(function (k) {
       var m = window.__dpCat.meta(k);
-      bar.appendChild(chip(k, m.label + ' · ' + counts[k], m.emoji, m.color, activeCat === k));
+      bar.appendChild(chip(k, m.label + ' · ' + counts[k], k, m.color, activeCat === k));
     });
     bar.style.display = 'flex';
   }
@@ -1653,18 +1642,32 @@
      Déduit un « thème » à partir du groupe M3U (group-title) et, à défaut, du nom
      de la chaîne. Utilisé par la recherche (chips) ET le guide (rails par thème)
      ET les goûts de profil. Exposé sur window.__dpCat pour les autres <script>. */
+  // Icônes au trait (même gabarit que la toolbar : viewBox 24, stroke 1.8, round).
+  var DP_ICONS = {
+    sport:   '<path d="M7 4h10v3a5 5 0 0 1-10 0V4z"/><path d="M7 6.2H4.6v1.4A3 3 0 0 0 7.6 10.6M17 6.2h2.4v1.4a3 3 0 0 1-3 3"/><path d="M9.6 12.4 9 17h6l-.6-4.6M8 20.5h8M10 17v3.5M14 17v3.5"/>',
+    cinema:  '<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M8 4.5v15M16 4.5v15M3 9.5h5M3 14.5h5M16 9.5h5M16 14.5h5"/>',
+    series:  '<rect x="2.5" y="5" width="19" height="12.5" rx="2"/><path d="M8 21h8M12 17.5V21"/>',
+    kids:    '<circle cx="12" cy="12" r="8.5"/><path d="M8.7 10h.01M15.3 10h.01M8.6 14.4a4.6 4.6 0 0 0 6.8 0"/>',
+    news:    '<path d="M4 5.5h11.5v14H5a1 1 0 0 1-1-1V5.5z"/><path d="M15.5 8.5H18a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2M7 9h6M7 12h6M7 15h4"/>',
+    docs:    '<path d="M3 8.5 12 5l9 3.5-9 3.5-9-3.5z"/><path d="M7 10.6V15c0 1.2 2.3 2.2 5 2.2s5-1 5-2.2v-4.4M21 8.5v4.5"/>',
+    music:   '<path d="M9 17V6.2l10.5-2v10.6"/><circle cx="6.4" cy="17" r="2.6"/><circle cx="16.9" cy="14.8" r="2.6"/>',
+    enter:   '<path d="M12 4v3.2M12 16.8V20M4 12h3.2M16.8 12H20M6.4 6.4l2.3 2.3M15.3 15.3l2.3 2.3M6.4 17.6l2.3-2.3M15.3 8.7l2.3-2.3"/>',
+    general: '<circle cx="12" cy="12" r="2"/><path d="M8.6 8.6a4.8 4.8 0 0 0 0 6.8M15.4 8.6a4.8 4.8 0 0 1 0 6.8M6.1 6.1a8.3 8.3 0 0 0 0 11.8M17.9 6.1a8.3 8.3 0 0 1 0 11.8"/>',
+    other:   '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
+  };
   var DP_CATEGORIES = [
-    { key: 'sport',   label: 'Sport',        emoji: '⚽', color: '#34c77b', re: /sport|foot|futbol|soccer|bein|dazn|eurosport|espn|nba|nfl|ufc|rugby|tennis|golf|cyclis|motogp|formula|f1|boxe|hand|volley|basket|hockey|ligue|liga|serie a|premier|champions|benfica|porto|sporting/i },
-    { key: 'cinema',  label: 'Cinéma',       emoji: '🎬', color: '#e50914', re: /cin[eé]|cinema|film|movie|ocs|tcm|paramount|hbo|max |action|thriller|comedy club|blockbuster/i },
-    { key: 'series',  label: 'Séries',       emoji: '📺', color: '#a855f7', re: /s[eé]ri|series|netflix|sitcom|drama|novela|telenovela/i },
-    { key: 'kids',    label: 'Enfants',      emoji: '🧒', color: '#f5a623', re: /enfant|kids|junior|disney|gulli|cartoon|boomerang|nickelodeon|nick |piwi|tiji|baby|canal j|panda|clan/i },
-    { key: 'news',    label: 'Info',         emoji: '📰', color: '#4f8cff', re: /info|news|actu|bfm|cnews|lci|franceinfo|france info|i24|euronews|cnn|bbc|sky news|al ?jazeera|notic|jornal/i },
-    { key: 'docs',    label: 'Docs',         emoji: '🎓', color: '#14b8a6', re: /doc|discovery|nat ?geo|national geo|histoire|history|science|planet|animaux|ushuaia|voyage|arte|rmc d[eé]couverte|odiss/i },
-    { key: 'music',   label: 'Musique',      emoji: '🎵', color: '#ec4899', re: /music|musique|mtv|clubbing|hits|trace|nrj|m6 music|deluxe|mezzo|kiss|radio/i },
-    { key: 'enter',   label: 'Divertissement', emoji: '🎭', color: '#f97316', re: /divertiss|entertain|realit|real |tv ?show|gala|people|lifestyle|cuisine|voyage|t[eé]l[eé]-?r[eé]alit/i },
-    { key: 'general', label: 'Généralistes', emoji: '📡', color: '#8b9bb4', re: /g[eé]n[eé]ral|tf1|france ?[2345]|m6|rtl|rts|rtp|tvi|sic|canal\+|w9|tmc|c8|nt1|6ter|premi[eè]re|antena|cuatro|telecinco|la ?[12]|rai ?[12]/i }
+    { key: 'sport',   label: 'Sport',        color: '#34c77b', re: /sport|foot|futbol|soccer|bein|dazn|eurosport|espn|nba|nfl|ufc|rugby|tennis|golf|cyclis|motogp|formula|f1|boxe|hand|volley|basket|hockey|ligue|liga|serie a|premier|champions|benfica|porto|sporting/i },
+    { key: 'cinema',  label: 'Cinéma',       color: '#e50914', re: /cin[eé]|cinema|film|movie|ocs|tcm|paramount|hbo|max |action|thriller|comedy club|blockbuster/i },
+    { key: 'series',  label: 'Séries',       color: '#a855f7', re: /s[eé]ri|series|netflix|sitcom|drama|novela|telenovela/i },
+    { key: 'kids',    label: 'Enfants',      color: '#f5a623', re: /enfant|kids|junior|disney|gulli|cartoon|boomerang|nickelodeon|nick |piwi|tiji|baby|canal j|panda|clan/i },
+    { key: 'news',    label: 'Info',         color: '#4f8cff', re: /info|news|actu|bfm|cnews|lci|franceinfo|france info|i24|euronews|cnn|bbc|sky news|al ?jazeera|notic|jornal/i },
+    { key: 'docs',    label: 'Docs',         color: '#14b8a6', re: /doc|discovery|nat ?geo|national geo|histoire|history|science|planet|animaux|ushuaia|voyage|arte|rmc d[eé]couverte|odiss/i },
+    { key: 'music',   label: 'Musique',      color: '#ec4899', re: /music|musique|mtv|clubbing|hits|trace|nrj|m6 music|deluxe|mezzo|kiss|radio/i },
+    { key: 'enter',   label: 'Divertissement', color: '#f97316', re: /divertiss|entertain|realit|real |tv ?show|gala|people|lifestyle|cuisine|voyage|t[eé]l[eé]-?r[eé]alit/i },
+    { key: 'general', label: 'Généralistes', color: '#8b9bb4', re: /g[eé]n[eé]ral|tf1|france ?[2345]|m6|rtl|rts|rtp|tvi|sic|canal\+|w9|tmc|c8|nt1|6ter|premi[eè]re|antena|cuatro|telecinco|la ?[12]|rai ?[12]/i }
   ];
-  var DP_CAT_OTHER = { key: 'other', label: 'Autres', emoji: '🎞️', color: '#8b9bb4' };
+  DP_CATEGORIES.forEach(function (c) { c.icon = DP_ICONS[c.key]; });
+  var DP_CAT_OTHER = { key: 'other', label: 'Autres', color: '#8b9bb4', icon: DP_ICONS.other };
   function dpCatOf(ch) {
     var hay = ((ch && ch.group ? ch.group : '') + ' ' + (ch && ch.name ? ch.name : '')).toLowerCase();
     for (var i = 0; i < DP_CATEGORIES.length; i++) if (DP_CATEGORIES[i].re.test(hay)) return DP_CATEGORIES[i];
@@ -1674,12 +1677,30 @@
     for (var i = 0; i < DP_CATEGORIES.length; i++) if (DP_CATEGORIES[i].key === key) return DP_CATEGORIES[i];
     return DP_CAT_OTHER;
   }
+  // Construit un <span> avec une icône SVG au trait (réutilisable partout).
+  function dpSvgEl(inner, cls) {
+    var s = document.createElement('span');
+    s.className = cls || 'dp-cic';
+    s.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + (inner || '') + '</svg>';
+    return s;
+  }
   window.__dpCat = {
     of: dpCatOf,
     meta: dpCatMeta,
     all: DP_CATEGORIES,
     other: DP_CAT_OTHER,
-    keyOf: function (ch) { return dpCatOf(ch).key; }
+    keyOf: function (ch) { return dpCatOf(ch).key; },
+    icon: function (key, cls) { return dpSvgEl(dpCatMeta(key).icon, cls); },
+    svgEl: dpSvgEl,
+    // Icônes « spéciales » pour les rails du guide (favoris / en direct / pour toi).
+    ICONS: {
+      star: '<path d="M12 3.5l2.6 5.6 6.1.6-4.6 4 1.4 6-5.5-3.2L6 20.3l1.4-6-4.6-4 6.1-.6z"/>',
+      live: '<circle cx="12" cy="12" r="9"/><path d="M10 8.4l5.6 3.6-5.6 3.6z"/>',
+      target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/>',
+      bell: '<path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+      clock: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M8.5 3 5.5 5.5M15.5 3l3 2.5"/>',
+      cast: '<path d="M3 8V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><path d="M3 12.5a5.5 5.5 0 0 1 5.5 5.5M3 16.5a1.5 1.5 0 0 1 1.5 1.5M3 20h.01"/>'
+    }
   };
 
   function markPlaying(li) {
@@ -2546,28 +2567,9 @@
     else if (e.key === 'ArrowDown') { zap(-1); e.preventDefault(); }
   });
 
-  // Picture-in-Picture (mini-lecteur).
-  var pipBtn = document.getElementById('pt-pip');
-  if (pipBtn && (document.pictureInPictureEnabled || video.webkitSupportsPresentationMode)) {
-    pipBtn.style.display = 'flex';
-    pipBtn.addEventListener('click', function () {
-      try {
-        if (video.webkitSetPresentationMode) {
-          video.webkitSetPresentationMode(video.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture');
-        } else if (document.pictureInPictureElement) { document.exitPictureInPicture(); }
-        else { video.requestPictureInPicture(); }
-      } catch (e) {}
-    });
-  }
-
-  // AirPlay (Safari / appareils Apple) — bouton visible seulement si une cible existe.
-  var apBtn = document.getElementById('pt-airplay');
-  if (apBtn && window.WebKitPlaybackTargetAvailabilityEvent) {
-    video.addEventListener('webkitplaybacktargetavailabilitychanged', function (ev) {
-      apBtn.style.display = (ev.availability === 'available') ? 'flex' : 'none';
-    });
-    apBtn.addEventListener('click', function () { try { video.webkitShowPlaybackTargetPicker(); } catch (e) {} });
-  }
+  // NB : plein écran, Picture-in-Picture et AirPlay sont fournis par les contrôles
+  // natifs de la balise <video> (iOS Safari, Chrome…). On ne les double PLUS avec
+  // des boutons flottants — ça recouvrait les contrôles natifs (bug « plus de plein écran »).
 
   // Minuterie de sommeil.
   var sleepBtn = document.getElementById('pt-sleep');
@@ -2866,6 +2868,8 @@
     var list = readRecent().filter(function (c) { return c.url !== ch.url; });
     list.unshift({ name: ch.name || 'Chaîne', url: ch.url, logo: ch.logo || '', group: ch.group || '', id: ch.id || '' });
     writeRecent(list);
+    // Rafraîchir le rail « Récemment vues » en direct (sinon il paraît figé/identique).
+    try { if (window.__refreshRecentRail) window.__refreshRecentRail(); } catch (e) {}
   };
 
   /* ---------------- Card building ---------------- */
@@ -3238,7 +3242,8 @@
     if (remProg && remProg.title) {
       var bell = document.createElement('button');
       bell.className = 'g-bell' + (hasReminder(gc.id, remProg.start) ? ' on' : '');
-      bell.type = 'button'; bell.textContent = '🔔';
+      bell.type = 'button';
+      if (window.__dpCat) bell.appendChild(window.__dpCat.svgEl(GIC.bell));
       bell.title = 'Me rappeler : ' + remProg.title;
       bell.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -3267,18 +3272,20 @@
     card.addEventListener('click', function () { pickGuideChannel(gc); });
     return card;
   }
-  function makeRail(title, emoji, color, gcList) {
+  // iconInner = markup SVG intérieur (icône au trait, gabarit toolbar).
+  function makeRail(title, iconInner, color, gcList) {
     if (!gcList || !gcList.length) return null;
     var rail = document.createElement('section');
     var h = document.createElement('h3'); h.className = 'g-rail-h';
     if (color) { var acc = document.createElement('span'); acc.className = 'g-accent'; acc.style.setProperty('--r-accent', color); h.appendChild(acc); }
-    if (emoji) { var em = document.createElement('span'); em.className = 'g-emoji'; em.textContent = emoji; h.appendChild(em); }
+    if (iconInner && window.__dpCat) { var ic = window.__dpCat.svgEl(iconInner); if (color) ic.style.color = color; h.appendChild(ic); }
     var tt = document.createElement('span'); tt.textContent = title; h.appendChild(tt);
     var track = document.createElement('div'); track.className = 'g-rail-track';
     gcList.forEach(function (gc) { track.appendChild(guideCard(gc)); });
     rail.appendChild(h); rail.appendChild(track);
     return rail;
   }
+  var GIC = (window.__dpCat && window.__dpCat.ICONS) || {};
 
   // Guide personnalisé en rails : ⭐ favoris, 📺 en ce moment, 🎯 pour toi, puis par catégorie.
   function renderRails() {
@@ -3296,7 +3303,7 @@
     // ⭐ Tes favoris
     var favGc = [];
     readGuideFavs().forEach(function (f) { var gc = findGuideChan(f.id); if (gc && guideChanHasDay(gc)) favGc.push(gc); });
-    var r1 = makeRail('Tes favoris', '⭐', '#f5a623', favGc);
+    var r1 = makeRail('Tes favoris', GIC.star, '#f5a623', favGc);
     if (r1) wrap.appendChild(r1);
 
     // 📺 En ce moment (aujourd'hui) — priorité favoris + goûts
@@ -3306,7 +3313,7 @@
         function sc(gc) { var c = gcCat(gc); return (favSet[baseId(gc.id)] ? 2 : 0) + ((c && tasteSet[c.key]) ? 1 : 0); }
         return sc(b) - sc(a) || a.name.localeCompare(b.name);
       });
-      var r2 = makeRail('En ce moment', '📺', '#e50914', live.slice(0, 24));
+      var r2 = makeRail('En ce moment', GIC.live, '#e50914', live.slice(0, 24));
       if (r2) wrap.appendChild(r2);
     }
 
@@ -3317,7 +3324,7 @@
       return (c && tasteSet[c.key]) || recentSet[baseId(gc.id)];
     });
     pourToi.sort(function (a, b) { return a.name.localeCompare(b.name); });
-    var r3 = makeRail('Pour toi', '🎯', '#4f8cff', pourToi.slice(0, 24));
+    var r3 = makeRail('Pour toi', GIC.target, '#4f8cff', pourToi.slice(0, 24));
     if (r3) wrap.appendChild(r3);
 
     // Un rail par catégorie — goûts d'abord, puis par nombre de chaînes.
@@ -3333,14 +3340,14 @@
       var list = byCat[key]; if (!list || !list.length) return;
       var m = window.__dpCat.meta(key);
       list.sort(function (a, b) { return a.name.localeCompare(b.name); });
-      var r = makeRail(m.label, m.emoji, m.color, list.slice(0, 30));
+      var r = makeRail(m.label, m.icon, m.color, list.slice(0, 30));
       if (r) wrap.appendChild(r);
     });
     // « Autres » (non catégorisées)
     var otherKey = window.__dpCat ? window.__dpCat.other.key : 'other';
     if (byCat[otherKey] && byCat[otherKey].length) {
       byCat[otherKey].sort(function (a, b) { return a.name.localeCompare(b.name); });
-      var ro = makeRail(window.__dpCat.other.label, window.__dpCat.other.emoji, window.__dpCat.other.color, byCat[otherKey].slice(0, 30));
+      var ro = makeRail(window.__dpCat.other.label, window.__dpCat.other.icon, window.__dpCat.other.color, byCat[otherKey].slice(0, 30));
       if (ro) wrap.appendChild(ro);
     }
 
@@ -3432,12 +3439,13 @@
     if (!curPid || !window.__dpCat || !window.__dpTastes) { el.style.display = 'none'; return; }
     el.innerHTML = '';
     var eff = {}; (window.__dpTastes.effective() || []).forEach(function (k) { eff[k] = 1; });
-    var lbl = document.createElement('span'); lbl.className = 'gt-label'; lbl.textContent = '🎯 Mes goûts :'; el.appendChild(lbl);
+    var lbl = document.createElement('span'); lbl.className = 'gt-label'; lbl.textContent = 'Mes goûts :'; el.appendChild(lbl);
     window.__dpCat.all.forEach(function (m) {
       var b = document.createElement('button');
       b.className = 'gt-chip' + (eff[m.key] ? ' on' : '');
       b.style.setProperty('--chip-c', m.color);
-      b.innerHTML = '<span>' + m.emoji + '</span><span>' + m.label + '</span>';
+      b.appendChild(window.__dpCat.icon(m.key));
+      var l = document.createElement('span'); l.textContent = m.label; b.appendChild(l);
       b.addEventListener('click', function () {
         var cur = window.__dpTastes.manual().slice();
         var i = cur.indexOf(m.key);
