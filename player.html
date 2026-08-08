@@ -3293,7 +3293,14 @@
       try { localStorage.removeItem('dpiptv.fav.' + p.id); localStorage.removeItem('dpiptv.recent.' + p.id); } catch (e) {}
     });
     try { localStorage.removeItem('dpiptv.profiles'); localStorage.removeItem('dpiptv.currentProfile'); } catch (e) {}
-    location.reload();
+    currentProfileId = null;
+    // Si la synchro est active : pousse l'état VIDE au cloud (donc à tous les appareils du même
+    // code) AVANT de recharger, pour que la suppression se propage partout.
+    if (window.__dpSync && window.__dpSync.enabled && window.__dpSync.enabled()) {
+      window.__dpSync.pushNow(function () { location.reload(); });
+    } else {
+      location.reload();
+    }
   });
 
   // Importer ses profils depuis un autre appareil (accessible dès l'écran « Qui regarde ? »).
@@ -3458,8 +3465,23 @@
     if (syncCodeVal()) alert('Synchro activée avec le code « ' + syncCodeVal() + ' ».\nMets le même code sur tes autres appareils pour y retrouver tes profils.');
   });
 
+  // Envoi IMMÉDIAT (non débouncé) de l'état courant, puis callback — utilisé par la réinitialisation
+  // pour propager la suppression des profils au cloud (donc à tous les appareils du même code)
+  // avant le rechargement. Fallback de sécurité si le réseau traîne.
+  function syncPushNow(cb) {
+    if (!syncEnabled()) { if (cb) cb(); return; }
+    var done = false;
+    var finish = function () { if (done) return; done = true; if (cb) cb(); };
+    setTimeout(finish, 2500); // filet de sécurité : ne bloque jamais l'utilisateur
+    fetch(syncBase() + '?code=' + encodeURIComponent(syncCodeVal()), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(syncSnapshot())
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j && j.updatedAt) { try { localStorage.setItem('dpiptv.sync.at', String(j.updatedAt)); } catch (e) {} } finish(); })
+      .catch(finish);
+  }
+
   // Exposé pour les autres <script> (writeRecent vit dans un scope séparé).
-  window.__dpSync = { push: scheduleSyncPush, pull: syncPull, enabled: syncEnabled };
+  window.__dpSync = { push: scheduleSyncPush, pull: syncPull, enabled: syncEnabled, pushNow: syncPushNow };
 
   // Synchro au démarrage + quand l'app revient au premier plan (changements faits ailleurs).
   setTimeout(function () { updateSyncUi(); if (syncEnabled()) syncPull(false); }, 400);
