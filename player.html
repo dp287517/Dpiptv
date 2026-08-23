@@ -5,10 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
 <title>Dpiptv — Lecteur de test</title>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js" integrity="sha384-V5ruNBgmYcC3SJRUQeNykAAAgde5gOFq/Hu0CZj7bygDP0yRIhkvX8+w0u/7mRvr" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js" integrity="sha384-Z2H/TjKWDNZA/2luGOnjLx9pcva7cK4VSWC+hZn78Kr5uG8YbMpxdz+wWXBMO6N/" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js" integrity="sha384-fl7i8WZxcPlF9b1503+Gm+izr/2hpilydj0i/DlQTIafROZ1NP4rAWjyl6p3s1ev" crossorigin="anonymous"></script>
-<script src="player/engine.js"></script>
+<script src="vendor/hls-1.5.20.min.js" integrity="sha384-V5ruNBgmYcC3SJRUQeNykAAAgde5gOFq/Hu0CZj7bygDP0yRIhkvX8+w0u/7mRvr"></script>
+<script src="vendor/mpegts-1.7.3.min.js" integrity="sha384-gWBszQzp4KdKY3PNUrFbTuvAcChcUSMKpSrt/OjDS3qe16Ef4OZSfP5E/+KcPueP"></script>
+<script src="vendor/dashjs-4.7.4.min.js" integrity="sha384-fl7i8WZxcPlF9b1503+Gm+izr/2hpilydj0i/DlQTIafROZ1NP4rAWjyl6p3s1ev"></script>
 <style>
   :root {
     --bg: #0f1115;
@@ -77,9 +76,6 @@
   #buf { display: none; color: var(--warn); font-size: .8rem; }
   #now-playing.buffering #buf { display: inline; }
   #now-playing.buffering #now-playing-name { opacity: .6; }
-  #now-playing .now-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  #now-playing-name, #now-playing-epg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #now-playing-epg { color: var(--muted); font-size: .75rem; }
   @keyframes pulse { 50% { opacity: .3; } }
   #status {
     margin: 8px 14px 0;
@@ -275,14 +271,7 @@
 <div class="player-wrap">
   <video id="video" controls playsinline autoplay></video>
 </div>
-<div id="now-playing">
-  <span class="dot"></span>
-  <span class="now-meta">
-    <span id="now-playing-name"></span>
-    <span id="now-playing-epg"></span>
-  </span>
-  <span id="buf">⏳ mise en mémoire tampon…</span>
-</div>
+<div id="now-playing"><span class="dot"></span><span id="now-playing-name"></span><span id="buf">⏳ mise en mémoire tampon…</span></div>
 <div id="status"></div>
 
 <header>
@@ -403,11 +392,8 @@
 (function () {
   'use strict';
 
-  var engine = window.DpiptvEngine;
-
   var REPO = 'dp287517/Dpiptv';
   var BRANCH = 'master';
-  var PLAYER_INDEX_URL = 'https://dp287517.github.io/Dpiptv/channel-index.json';
   var QUICK = ['fr', 'ch', 'be', 'uk', 'us', 'de', 'it', 'es', 'pt'];
   var DEFAULT_PROXY = 'https://poly-proxy.palhadaniel-elec.workers.dev/?url={url}';
 
@@ -421,26 +407,15 @@
   var emptyEl = document.getElementById('empty');
   var nowPlayingEl = document.getElementById('now-playing');
   var nowPlayingName = document.getElementById('now-playing-name');
-  var nowPlayingEpg = document.getElementById('now-playing-epg');
   var chipsEl = document.getElementById('chips');
 
   var channels = [];
-  var visibleChannels = [];
-  var currentChannel = null;
   var hls = null;
   var mpegts = null;
   var dash = null;
   var playToken = 0;
-  var playlistLoadToken = 0;
-
-  function fetchWithTimeout(url, options, timeoutMs) {
-    if (!window.AbortController) return fetch(url, options);
-    var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, timeoutMs || 15000);
-    var requestOptions = Object.assign({}, options || {});
-    requestOptions.signal = controller.signal;
-    return fetch(url, requestOptions).finally(function () { clearTimeout(timer); });
-  }
+  var activePlayback = null;
+  var proxyProfileCache = {};
 
   /* ---------------- Hidden channels ---------------- */
   // Channels the user removed from view, keyed by URL, persisted per device.
@@ -471,80 +446,12 @@
     setStatus('info', 'Toutes les chaînes masquées ont été réaffichées.');
   }
 
-  /* ---------------- Favorites ---------------- */
-
-  var favorites = [];
-  try {
-    var storedFavorites = JSON.parse(localStorage.getItem('dpiptv.favorites') || '[]');
-    if (Array.isArray(storedFavorites)) {
-      favorites = storedFavorites.filter(function (channel) {
-        return channel && isSafeHttpUrl(channel.url) && typeof channel.name === 'string';
-      }).slice(0, 500);
-    }
-  } catch (e) { favorites = []; }
-
-  function saveFavorites() {
-    try { localStorage.setItem('dpiptv.favorites', JSON.stringify(favorites)); } catch (e) {}
-  }
-  function isFavorite(url) {
-    return favorites.some(function (channel) { return channel.url === url; });
-  }
-  function toggleFavorite(channel) {
-    if (!channel || !isSafeHttpUrl(channel.url)) return;
-    if (isFavorite(channel.url)) {
-      favorites = favorites.filter(function (favorite) { return favorite.url !== channel.url; });
-    } else if (favorites.length < 500) {
-      favorites.push({
-        name: String(channel.name || 'Chaîne').slice(0, 300),
-        url: channel.url,
-        logo: isSafeHttpUrl(channel.logo) ? channel.logo : '',
-        group: String(channel.group || '').slice(0, 200),
-        id: String(channel.id || '').slice(0, 200),
-        src: String(channel.src || '').slice(0, 120),
-        mirror: typeof channel.mirror === 'string' ? channel.mirror : ''
-      });
-    }
-    saveFavorites();
-    render(searchEl.value);
-    renderChips();
-  }
-  function loadFavorites() {
-    playlistLoadToken++;
-    exitGlobalMode();
-    setActiveChip('favorites');
-    stopPlayback();
-    channels = favorites.slice();
-    searchEl.value = '';
-    spinnerEl.style.display = 'none';
-    setStatus(favorites.length ? '' : 'info', favorites.length ? '' : 'Aucun favori pour l’instant.');
-    render('');
-  }
-
   /* ---------------- Proxy settings ---------------- */
 
   var proxyTpl = localStorage.getItem('dpiptv.proxyTpl');
   if (proxyTpl === null) proxyTpl = DEFAULT_PROXY;
   var proxyMode = localStorage.getItem('dpiptv.proxyMode') || 'fallback';
-  if (['off', 'fallback', 'always'].indexOf(proxyMode) < 0) proxyMode = 'fallback';
 
-  function isSafeHttpUrl(value) {
-    if (typeof value !== 'string' || value.length > 8192) return false;
-    try {
-      var parsed = new URL(value);
-      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-    } catch (e) { return false; }
-  }
-  function isSafeProxyTemplate(value) {
-    if (!value) return true;
-    var probe = value.indexOf('{url}') >= 0
-      ? value.replace('{url}', encodeURIComponent('https://example.com/live.m3u8'))
-      : value + encodeURIComponent('https://example.com/live.m3u8');
-    return isSafeHttpUrl(probe);
-  }
-  if (!isSafeProxyTemplate(proxyTpl)) {
-    proxyTpl = DEFAULT_PROXY;
-    localStorage.removeItem('dpiptv.proxyTpl');
-  }
   function proxyPrefix() {
     var i = proxyTpl.indexOf('{url}');
     return i >= 0 ? proxyTpl.slice(0, i) : proxyTpl;
@@ -552,43 +459,66 @@
   function proxyReady() {
     return proxyMode !== 'off' && !!proxyTpl;
   }
-  function proxyOrigin() {
-    try { return new URL(proxyTpl).origin; } catch (e) { return ''; }
-  }
-  function supportsPathProxy() {
-    try { return /(^|\.)workers\.dev$/i.test(new URL(proxyTpl).hostname); } catch (e) { return false; }
-  }
   function isProxied(u) {
     var p = proxyPrefix();
-    if (p && u.indexOf(p) === 0) return true;
-    try {
-      var parsed = new URL(u);
-      return parsed.origin === proxyOrigin() && /^\/https?\/[^/]+/.test(parsed.pathname);
-    } catch (e) { return false; }
+    return !!p && u.indexOf(p) === 0;
   }
-  function proxify(u) {
+  function proxify(u, profile) {
     if (!proxyTpl || isProxied(u)) return u;
-    if (supportsPathProxy()) {
-      try {
-        var target = new URL(u);
-        return proxyOrigin() + '/' + target.protocol.slice(0, -1) + '/' + target.host +
-          target.pathname + target.search;
-      } catch (e) { /* fall through to the configured template */ }
-    }
-    if (proxyTpl.indexOf('{url}') >= 0) return proxyTpl.replace('{url}', encodeURIComponent(u));
-    return proxyTpl + encodeURIComponent(u);
+    var result = proxyTpl.indexOf('{url}') >= 0
+      ? proxyTpl.replace('{url}', encodeURIComponent(u))
+      : proxyTpl + encodeURIComponent(u);
+    if (result.indexOf('{profile}') >= 0) result = result.replace('{profile}', encodeURIComponent(profile || ''));
+    else if (profile) result += (result.indexOf('?') >= 0 ? '&' : '?') + 'profile=' + encodeURIComponent(profile);
+    return result;
   }
   function unproxify(u) {
     if (!isProxied(u)) return u;
-    try {
-      var parsed = new URL(u);
-      var match = parsed.pathname.match(/^\/(https?)\/([^/]+)(\/.*)?$/);
-      if (match && parsed.origin === proxyOrigin()) {
-        return match[1] + '://' + match[2] + (match[3] || '/') + parsed.search;
-      }
-    } catch (e) { /* decode a query-style proxy below */ }
     var rest = u.slice(proxyPrefix().length);
     try { return decodeURIComponent(rest); } catch (e) { return rest; }
+  }
+
+  function usesSignedProfiles() {
+    return proxyReady() && (proxyTpl === DEFAULT_PROXY || proxyTpl.indexOf('token=') >= 0 ||
+      proxyTpl.indexOf('{profile}') >= 0);
+  }
+  function proxyActionUrl(action) {
+    var value = proxyTpl.indexOf('{url}') >= 0 ? proxyTpl.replace('{url}', '') : proxyTpl;
+    var url = new URL(value, location.href);
+    url.searchParams.delete('url');
+    url.searchParams.delete('profile');
+    url.searchParams.set('action', action);
+    return url.toString();
+  }
+  function issueProxyProfile(ch, registerCleanup) {
+    if (!usesSignedProfiles()) return Promise.resolve('');
+    var key = [ch.url, ch.catalog || '', ch.personal ? '1' : '0', ch.userAgent || '', ch.referrer || ''].join('\n');
+    var cached = proxyProfileCache[key];
+    if (cached && cached.expires > Date.now() + 60000) return Promise.resolve(cached.token);
+    var controller = window.AbortController ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, 8000) : null;
+    if (controller && registerCleanup) registerCleanup(function () { controller.abort(); });
+    return fetch(proxyActionUrl('profile'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller ? controller.signal : undefined,
+      body: JSON.stringify({
+        target: ch.url,
+        playlist: ch.catalog || '',
+        personal: !!ch.personal,
+        userAgent: ch.userAgent || '',
+        referrer: ch.referrer || ''
+      })
+    }).then(function (response) {
+      if (!response.ok) return response.text().then(function (message) {
+        throw new Error('profil proxy HTTP ' + response.status + (message ? ' : ' + message : ''));
+      });
+      return response.json();
+    }).then(function (data) {
+      if (!data || !data.profile) throw new Error('profil proxy invalide');
+      proxyProfileCache[key] = { token: data.profile, expires: data.expires || (Date.now() + 300000) };
+      return data.profile;
+    }).finally(function () { if (timer) clearTimeout(timer); });
   }
 
   /* Rewrites an HLS manifest so every URI goes through the proxy.
@@ -596,35 +526,35 @@
   function absUrl(u, baseUrl) {
     try { return new URL(u, baseUrl).toString(); } catch (e) { return u; }
   }
-  function rewriteManifest(text, baseUrl) {
+  function rewriteManifest(text, baseUrl, profile) {
     return text.split('\n').map(function (line) {
       var t = line.trim();
       if (!t) return line;
       if (t.charAt(0) === '#') {
         return line.replace(/URI="([^"]+)"/g, function (_m, u) {
-          return 'URI="' + proxify(absUrl(u, baseUrl)) + '"';
+          return 'URI="' + proxify(absUrl(u, baseUrl), profile) + '"';
         });
       }
-      return proxify(absUrl(t, baseUrl));
+      return proxify(absUrl(t, baseUrl), profile);
     }).join('\n');
   }
 
   /* hls.js loader that routes every request through the proxy and
      rewrites manifests client-side (works with any pass-through CORS proxy). */
-  var ProxyLoader = null;
-  function getProxyLoader() {
-    if (ProxyLoader || !window.Hls) return ProxyLoader;
+  function getProxyLoader(profile) {
+    if (!window.Hls) return null;
     var Base = Hls.DefaultConfig.loader;
-    ProxyLoader = function (config) { Base.call(this, config); };
+    var ProxyLoader = function (config) { Base.call(this, config); };
     ProxyLoader.prototype = Object.create(Base.prototype);
     ProxyLoader.prototype.constructor = ProxyLoader;
     ProxyLoader.prototype.load = function (context, config, callbacks) {
-      context.url = proxify(context.url);
+      context.url = proxify(context.url, profile);
       var onSuccess = callbacks.onSuccess;
       callbacks.onSuccess = function (response, stats, ctx, xhr) {
-        if (typeof response.data === 'string' && response.data.indexOf('#EXTM3U') === 0) {
+        if (typeof response.data === 'string' && response.data.indexOf('#EXTM3U') === 0 &&
+            ctx.url.indexOf('profile=') < 0) {
           var base = unproxify(ctx.url);
-          response.data = rewriteManifest(response.data, base);
+          response.data = rewriteManifest(response.data, base, profile);
         }
         onSuccess(response, stats, ctx, xhr);
       };
@@ -643,7 +573,7 @@
   // Mobile registers a URL scheme; desktop VLC does NOT handle vlc://, so on
   // desktop we hand off a downloadable .m3u (opens in VLC on double-click if
   // it is the default player) and also copy the link for manual "Open Network".
-  function openInVlc(url, name) {
+  function openInVlc(url, name, options) {
     if (IS_IOS) { window.location.href = 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(url); return; }
     if (IS_ANDROID) {
       var scheme = url.indexOf('https:') === 0 ? 'https' : 'http';
@@ -657,6 +587,8 @@
     var m3u = '#EXTM3U\n#EXTINF:-1,' + (name || 'Flux') + '\n' +
       '#EXTVLCOPT:network-caching=5000\n' +
       '#EXTVLCOPT:http-reconnect=true\n' +
+      (options && options.userAgent ? '#EXTVLCOPT:http-user-agent=' + options.userAgent + '\n' : '') +
+      (options && options.referrer ? '#EXTVLCOPT:http-referrer=' + options.referrer + '\n' : '') +
       url + '\n';
     var blob = new Blob([m3u], { type: 'audio/x-mpegurl' });
     var href = URL.createObjectURL(blob);
@@ -673,11 +605,11 @@
       'Le lien est aussi copié : dans VLC, <b>Fichier → Ouvrir un flux réseau</b> (⌘N), colle-le.');
   }
 
-  function makeVlcLink(url, name, label) {
+  function makeVlcLink(url, name, label, options) {
     var b = document.createElement('button');
     b.className = 'action-btn vlc';
     b.textContent = label || '▶ Ouvrir dans VLC';
-    b.addEventListener('click', function (e) { e.stopPropagation(); openInVlc(url, name); });
+    b.addEventListener('click', function (e) { e.stopPropagation(); openInVlc(url, name, options); });
     return b;
   }
 
@@ -701,7 +633,7 @@
     return b;
   }
   function failActions(ch) {
-    return [makeVlcLink(ch.url, ch.name), makeCopyBtn(ch.url)];
+    return [makeVlcLink(ch.url, ch.name, null, ch), makeCopyBtn(ch.url)];
   }
   function geoHint(ch) {
     return /geo.?block/i.test(ch.name)
@@ -715,11 +647,10 @@
     return 'https://raw.githubusercontent.com/' + REPO + '/' + BRANCH + '/streams/' + code + '.m3u';
   }
 
-  function parseM3U(text) {
+  function parseM3U(text, context) {
     var lines = text.split(/\r?\n/);
     var result = [];
     var pending = null;
-    var seen = {};
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (!line) continue;
@@ -735,14 +666,20 @@
           group: attrs['group-title'] || '',
           id: attrs['tvg-id'] || ''
         };
+      } else if (line.indexOf('#EXTVLCOPT:') === 0 && pending) {
+        var option = line.slice('#EXTVLCOPT:'.length);
+        var eq = option.indexOf('=');
+        var key = eq >= 0 ? option.slice(0, eq).toLowerCase() : option.toLowerCase();
+        var value = eq >= 0 ? option.slice(eq + 1) : '';
+        if (key === 'http-user-agent') pending.userAgent = value;
+        if (key === 'http-referrer' || key === 'http-referer') pending.referrer = value;
       } else if (line.charAt(0) === '#') {
         continue;
       } else if (pending) {
-        if (isSafeHttpUrl(line) && !seen[line]) {
-          pending.url = line;
-          result.push(pending);
-          seen[line] = 1;
-        }
+        pending.url = line;
+        if (context && context.catalog) pending.catalog = context.catalog;
+        if (context && context.personal) pending.personal = true;
+        result.push(pending);
         pending = null;
       }
     }
@@ -753,96 +690,108 @@
 
   var globalMode = false;
   var globalIndex = null;
-  var indexMirrors = {};
   var globalLoadingPromise = null;
   var MAX_GLOBAL_RESULTS = 400;
+  var catalogScheduled = false;
+  var healthData = null;
+  var healthLoadingPromise = null;
 
-  function loadLegacyGlobalIndex() {
-    countEl.textContent = 'Index compact indisponible — chargement des playlists…';
-    return fetchWithTimeout(
-      'https://api.github.com/repos/' + REPO + '/contents/streams?ref=' + BRANCH,
-      {},
-      15000
-    )
-      .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .then(function (files) {
-        var names = files
-          .filter(function (f) { return /\.m3u$/.test(f.name); })
-          .map(function (f) { return f.name.replace(/\.m3u$/, ''); });
-        var idx = [];
-        var done = 0, i = 0, active = 0, CONC = 12;
-        return new Promise(function (resolve) {
-          function next() {
-            if (done === names.length) { resolve(idx); return; }
-            while (active < CONC && i < names.length) {
-              (function (code) {
-                active++;
-                fetchWithTimeout(rawUrl(code), {}, 15000)
-                  .then(function (r) { return r.ok ? r.text() : ''; })
-                  .catch(function () { return ''; })
-                  .then(function (text) {
-                    if (text) {
-                      parseM3U(text).forEach(function (ch) { ch.src = code; idx.push(ch); });
-                    }
-                    done++; active--;
-                    countEl.textContent = 'Indexation mondiale : ' + done + ' / ' + names.length + ' playlists…';
-                    next();
-                  });
-              })(names[i++]);
-            }
-          }
-          next();
-        });
-      })
-      .then(function (idx) { return idx; });
+  function applyHealth(channel) {
+    if (!healthData || !channel) return;
+    var result = healthData.results[channel.url];
+    if (result) channel.health = {
+      ok: result[0] === 1, code: result[1], testedAt: healthData.testedAt, region: healthData.region
+    };
+    (channel.mirrors || []).forEach(applyHealth);
   }
 
-  function loadGlobalIndex() {
+  function loadHealth() {
+    if (healthLoadingPromise) return healthLoadingPromise;
+    healthLoadingPromise = fetch('health.json', { cache: 'no-cache' })
+      .then(function (response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      })
+      .then(function (data) {
+        if (!data || data.v !== 1 || !data.results) throw new Error('rapport incompatible');
+        healthData = data;
+        channels.forEach(applyHealth);
+        if (globalIndex) globalIndex.forEach(applyHealth);
+        dbg('Santé indicative chargée : ' + data.testedAt + ' · ' + data.region);
+        if (!nowPlayingEl.classList.contains('visible')) render(searchEl.value);
+        return data;
+      })
+      .catch(function (error) {
+        healthLoadingPromise = null;
+        dbg('Santé indicative indisponible : ' + error.message);
+      });
+    return healthLoadingPromise;
+  }
+
+  function decodeCatalog(data) {
+    if (!data || data.v !== 1 || !Array.isArray(data.c)) throw new Error('catalogue incompatible');
+    return data.c.map(function (entry) {
+      var sources = (entry.s || []).map(function (candidate) {
+        var filename = candidate[1] || '';
+        var code = filename.replace(/\.m3u$/i, '');
+        return {
+          id: entry.i || '', name: entry.n || 'Sans nom', logo: entry.l || '',
+          group: (entry.g || []).join(' · '), countries: entry.p || [],
+          url: candidate[0], src: code, catalog: rawUrl(code),
+          userAgent: candidate[2] || '', referrer: candidate[3] || ''
+        };
+      });
+      var channel = sources.shift() || {
+        id: entry.i || '', name: entry.n || 'Sans nom', logo: entry.l || '',
+        group: (entry.g || []).join(' · '), countries: entry.p || [], url: ''
+      };
+      channel.mirrors = sources;
+      applyHealth(channel);
+      return channel;
+    }).filter(function (channel) { return !!channel.url; });
+  }
+
+  function loadGlobalIndex(silent) {
     if (globalLoadingPromise) return globalLoadingPromise;
-    countEl.textContent = 'Chargement de l’index mondial…';
-    globalLoadingPromise = fetchWithTimeout(PLAYER_INDEX_URL, {}, 20000)
+    if (!silent) countEl.textContent = 'Chargement du catalogue…';
+    globalLoadingPromise = fetch('catalog.json', { cache: 'no-cache' })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       })
-      .then(function (payload) {
-        var idx = Array.isArray(payload) ? payload : payload && payload.channels;
-        var mirrors = !Array.isArray(payload) && payload && payload.mirrors;
-        if (!Array.isArray(idx) || idx.some(function (ch) {
-          return !ch || typeof ch.name !== 'string' || typeof ch.url !== 'string' ||
-            !/^https?:\/\//i.test(ch.url);
-        })) throw new Error('format invalide');
-        indexMirrors = mirrors && typeof mirrors === 'object' ? mirrors : {};
-        return idx;
-      })
-      .catch(function () { return loadLegacyGlobalIndex(); })
-      .then(function (idx) {
-        globalIndex = idx;
-        return idx;
+      .then(function (data) {
+        globalIndex = decodeCatalog(data);
+        dbg('Catalogue différé chargé : ' + globalIndex.length + ' chaînes groupées');
+        return globalIndex;
       })
       .catch(function (err) {
         globalLoadingPromise = null;
-        setStatus('error', '❌ Impossible de charger l’index mondial (' + escapeHtml(err.message) + '). Réessaie.');
+        if (!silent) setStatus('error', '❌ Impossible de charger le catalogue (' + escapeHtml(err.message) + '). Réessaie.');
         throw err;
       });
     return globalLoadingPromise;
   }
 
+  function scheduleCatalogLoad() {
+    if (catalogScheduled || globalIndex || globalLoadingPromise) return;
+    catalogScheduled = true;
+    var load = function () {
+      loadGlobalIndex(true).catch(function () {});
+      loadHealth();
+    };
+    if (window.requestIdleCallback) window.requestIdleCallback(load, { timeout: 3000 });
+    else setTimeout(load, 1500);
+  }
+
   document.getElementById('global-btn').addEventListener('click', function () {
     globalMode = !globalMode;
-    if (globalMode) {
-      playlistLoadToken++;
-      spinnerEl.style.display = 'none';
-    }
     this.classList.toggle('active', globalMode);
     searchEl.placeholder = globalMode
       ? '🌍 Rechercher dans toutes les playlists…'
       : '🔍 Rechercher une chaîne…';
     if (globalMode && !globalIndex) {
       loadGlobalIndex().then(function () { render(searchEl.value); }, function () {});
+      loadHealth();
     }
     render(searchEl.value);
     searchEl.focus();
@@ -866,26 +815,24 @@
         emptyEl.style.display = 'none';
         return;
       }
-      source = engine.searchChannels(
-        globalIndex.filter(function (ch) { return !hidden[ch.url]; }),
-        q,
-        MAX_GLOBAL_RESULTS + 1
-      );
+      source = globalIndex.filter(function (ch) {
+        return !hidden[ch.url] && (ch.name.toLowerCase().indexOf(q) >= 0 ||
+          ch.group.toLowerCase().indexOf(q) >= 0 || (ch.countries || []).join(' ').indexOf(q) >= 0);
+      });
       if (source.length > MAX_GLOBAL_RESULTS) {
         source = source.slice(0, MAX_GLOBAL_RESULTS);
         truncated = true;
       }
     } else {
-      var available = channels.filter(function (ch) { return !hidden[ch.url]; });
-      source = q ? engine.searchChannels(available, q, MAX_GLOBAL_RESULTS) : available;
+      source = channels.filter(function (ch) {
+        return !hidden[ch.url] && (!q || ch.name.toLowerCase().indexOf(q) >= 0 || ch.group.toLowerCase().indexOf(q) >= 0);
+      });
     }
-    visibleChannels = source.slice();
 
     source.forEach(function (ch, idx) {
       shown++;
       var li = document.createElement('li');
       li.className = 'channel';
-      if (currentChannel && currentChannel.url === ch.url) li.classList.add('playing');
       li.dataset.idx = idx;
 
       if (ch.logo && /^https?:\/\//i.test(ch.logo)) {
@@ -917,6 +864,10 @@
       meta.appendChild(nm);
       var groupText = ch.group || '';
       if (ch.src) groupText = (groupText ? groupText + ' · ' : '') + 'Playlist ' + ch.src.toUpperCase();
+      if (ch.health) {
+        groupText += (groupText ? ' · ' : '') + (ch.health.ok ? 'Test OK ' : 'Test en échec ') +
+          String(ch.health.testedAt || '').slice(0, 10) + ' · ' + ch.health.region;
+      }
       if (groupText) {
         var gr = document.createElement('div');
         gr.className = 'group';
@@ -935,7 +886,7 @@
       vlc.className = 'mini-btn vlc';
       vlc.textContent = 'VLC';
       vlc.title = 'Ouvrir dans VLC';
-      vlc.addEventListener('click', function (e) { e.stopPropagation(); openInVlc(ch.url, ch.name); });
+      vlc.addEventListener('click', function (e) { e.stopPropagation(); openInVlc(ch.url, ch.name, ch); });
       li.appendChild(vlc);
 
       var copy = document.createElement('button');
@@ -947,17 +898,6 @@
         copyText(ch.url);
       });
       li.appendChild(copy);
-
-      var favorite = document.createElement('button');
-      favorite.className = 'mini-btn';
-      favorite.title = isFavorite(ch.url) ? 'Retirer des favoris' : 'Ajouter aux favoris';
-      favorite.textContent = isFavorite(ch.url) ? '★' : '☆';
-      favorite.setAttribute('aria-label', favorite.title);
-      favorite.addEventListener('click', function (e) {
-        e.stopPropagation();
-        toggleFavorite(ch);
-      });
-      li.appendChild(favorite);
 
       var hide = document.createElement('button');
       hide.className = 'mini-btn hide';
@@ -999,18 +939,15 @@
 
   /* ---------------- Playback ---------------- */
 
-  function stopPlayback(preserveSelection) {
+  function stopPlayback() {
     playToken++;
+    if (activePlayback) { activePlayback.cancel(); activePlayback = null; }
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     if (mpegts) { try { mpegts.destroy(); } catch (e) {} mpegts = null; }
     if (dash) { try { dash.reset(); } catch (e) {} dash = null; }
     nowPlayingEl.classList.remove('buffering');
+    video.pause();
     video.removeAttribute('src');
-    video.load();
-    if (!preserveSelection) {
-      currentChannel = null;
-      nowPlayingEpg.textContent = '';
-    }
   }
 
   // Decide which playback engine a URL needs, from its extension.
@@ -1027,39 +964,6 @@
     var prev = channelsEl.querySelector('.channel.playing');
     if (prev) prev.classList.remove('playing');
     if (li) li.classList.add('playing');
-  }
-
-  var guide = null;
-  function refreshEpg() {
-    var program = currentChannel
-      ? engine.currentProgram(guide, currentChannel.id || '', Date.now())
-      : null;
-    if (!program || !program.now || typeof program.now.title !== 'string') {
-      nowPlayingEpg.textContent = '';
-      return;
-    }
-    var label = program.now.title.slice(0, 300);
-    if (program.next && typeof program.next.title === 'string' && program.next.title) {
-      label += ' · ensuite ' + program.next.title.slice(0, 300);
-    }
-    nowPlayingEpg.textContent = label;
-  }
-
-  function loadGuide() {
-    fetchWithTimeout('guide.json', {}, 15000)
-      .then(function (response) {
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        var contentLength = Number(response.headers.get('content-length') || 0);
-        if (contentLength > 20 * 1024 * 1024) throw new Error('guide trop volumineux');
-        return response.json();
-      })
-      .then(function (payload) {
-        if (!payload || !payload.channels || Array.isArray(payload.channels) ||
-            Object.keys(payload.channels).length > 50000) throw new Error('format invalide');
-        guide = payload;
-        refreshEpg();
-      })
-      .catch(function (error) { dbg('EPG indisponible : ' + error.message); });
   }
 
   function escapeHtml(s) {
@@ -1085,7 +989,7 @@
   // Network probe: reports HTTP status, or distinguishes a CORS/mixed-content
   // block (fetch rejects) from a dead host — helpful for a black screen.
   function probe(url, label) {
-    fetchWithTimeout(url, { method: 'GET', headers: { Range: 'bytes=0-1' } }, 8000).then(function (r) {
+    fetch(url, { method: 'GET', headers: { Range: 'bytes=0-1' } }).then(function (r) {
       dbg('🔎 ' + label + ' → HTTP ' + r.status + ' ' + (r.type || '') +
         ' | CORS ' + (r.headers.get('access-control-allow-origin') ? 'ok' : 'absent'));
     }).catch(function (e) {
@@ -1094,110 +998,226 @@
     });
   }
 
-  function collectMirrors(ch) {
-    var urls = engine.mirrorUrls(ch, indexMirrors);
-    return urls.map(function (url) {
-      if (url === ch.url) return ch;
-      var found = globalIndex && globalIndex.find(function (candidate) { return candidate.url === url; });
-      return found || Object.assign({}, ch, { url: url });
+  var FIRST_FRAME_TIMEOUT = 12000;
+  var FAILOVER_BUDGET = 50000;
+  var STALL_TIMEOUT = 15000;
+
+  function mirrorCandidates(ch) {
+    var result = [ch], seen = {};
+    seen[ch.url] = 1;
+    function add(candidate) {
+      if (candidate && !seen[candidate.url]) { seen[candidate.url] = 1; result.push(candidate); }
+    }
+    (ch.mirrors || []).forEach(add);
+    if (!ch.id) return result;
+    channels.forEach(function (candidate) {
+      if (candidate.id === ch.id) { add(candidate); (candidate.mirrors || []).forEach(add); }
     });
+    if (globalIndex) {
+      globalIndex.forEach(function (candidate) {
+        if (candidate.id === ch.id) { add(candidate); (candidate.mirrors || []).forEach(add); }
+      });
+    }
+    return result;
   }
 
-  function play(ch, li, viaProxy, mirrorState) {
-    if (!ch || !isSafeHttpUrl(ch.url)) {
-      setStatus('error', '❌ Le lien du flux doit être une URL HTTP(S) valide.');
-      return;
-    }
-    mirrorState = mirrorState || { channels: collectMirrors(ch), index: 0 };
-    stopPlayback(true);
-    currentChannel = ch;
-    var token = playToken;
+  function play(ch, li) {
+    stopPlayback();
     markPlaying(li);
     nowPlayingEl.classList.add('visible');
     nowPlayingName.textContent = ch.name;
-    refreshEpg();
     setStatus('', '');
-
-    var insecure = ch.url.indexOf('http:') === 0 && location.protocol === 'https:';
-    var kind = detectKind(ch.url);
-    var useProxy = !!viaProxy || (proxyMode === 'always' && proxyReady());
-    dbg('▶ « ' + ch.name +' »');
-    dbg('   url = ' + ch.url);
-    dbg('   format=' + kind + ' · http-non-sécurisé=' + (insecure ? 'oui' : 'non') +
-        ' · proxy=' + (useProxy ? 'oui' : 'non') + (viaProxy ? ' (2e essai)' : ''));
-    if (insecure && !useProxy) {
-      if (proxyReady()) {
-        useProxy = true;
-      } else {
-        setStatus('warn',
-          '⚠️ « ' + escapeHtml(ch.name) + ' » est en <b>http://</b> non sécurisé : le navigateur le bloque. ' +
-          'Active le proxy (⚙️ en haut) ou ouvre-le dans VLC :',
-          failActions(ch));
-        return;
+    var candidates = mirrorCandidates(ch);
+    var attempts = [];
+    var directAllowed = proxyMode !== 'always';
+    if (directAllowed) candidates.forEach(function (candidate) {
+      if (!(candidate.url.indexOf('http:') === 0 && location.protocol === 'https:')) {
+        attempts.push({ ch: candidate, proxy: false });
       }
+    });
+    if (proxyReady()) candidates.forEach(function (candidate) { attempts.push({ ch: candidate, proxy: true }); });
+    if (!attempts.length) attempts.push({ ch: ch, proxy: false });
+
+    var session = {
+      token: playToken,
+      index: -1,
+      deadline: Date.now() + FAILOVER_BUDGET,
+      cancelled: false,
+      cleanups: [],
+      attemptSerial: 0,
+      transitioning: false,
+      hls: null,
+      mpegts: null,
+      dash: null,
+      cancel: function () {
+        this.cancelled = true;
+        this.cleanAttempt();
+      },
+      cleanAttempt: function () {
+        this.attemptSerial++;
+        while (this.cleanups.length) { try { this.cleanups.pop()(); } catch (e) {} }
+        var oldHls = this.hls; this.hls = null;
+        var oldMpegts = this.mpegts; this.mpegts = null;
+        var oldDash = this.dash; this.dash = null;
+        if (hls === oldHls) hls = null;
+        if (mpegts === oldMpegts) mpegts = null;
+        if (dash === oldDash) dash = null;
+        if (oldHls) { try { oldHls.destroy(); } catch (e) {} }
+        if (oldMpegts) { try { oldMpegts.destroy(); } catch (e) {} }
+        if (oldDash) { try { oldDash.reset(); } catch (e) {} }
+        video.pause();
+        video.removeAttribute('src');
+      }
+    };
+    activePlayback = session;
+    dbg('▶ « ' + ch.name + ' » · ' + candidates.length + ' source(s), ' + attempts.length + ' tentative(s)');
+
+    function listen(target, event, fn, options) {
+      target.addEventListener(event, fn, options);
+      session.cleanups.push(function () { target.removeEventListener(event, fn, options); });
     }
-
-    setStatus('info', 'Chargement de « ' + escapeHtml(ch.name) + ' »' + (useProxy ? ' <b>via proxy</b>' : '') + '…');
-
-    var startupTimer = setTimeout(function () { onFail('délai de démarrage dépassé'); }, 25000);
-
-    function onFail(reason) {
-      if (token !== playToken) return;
-      clearTimeout(startupTimer);
-      dbg('   ✖ échec' + (useProxy ? ' (via proxy)' : '') + (reason ? ' : ' + reason : ''));
-      stopPlayback(true);
-      if (!useProxy && proxyReady() && proxyMode === 'fallback') {
-        setStatus('info', 'Lecture directe impossible — nouvel essai <b>via proxy</b>…');
-        play(ch, li, true, mirrorState);
-        return;
-      }
-      var nextMirror = mirrorState.index + 1;
-      if (nextMirror < mirrorState.channels.length) {
-        var replacement = mirrorState.channels[nextMirror];
-        setStatus('info', 'Flux indisponible — essai du miroir ' + (nextMirror + 1) +
-          ' / ' + mirrorState.channels.length + '…');
-        play(replacement, null, false, { channels: mirrorState.channels, index: nextMirror });
-        return;
-      }
-      // Final failure: probe the source to explain the black screen / error.
+    function later(fn, delay) {
+      var timer = setTimeout(fn, delay);
+      session.cleanups.push(function () { clearTimeout(timer); });
+      return timer;
+    }
+    function alive() { return !session.cancelled && session.token === playToken && activePlayback === session; }
+    function finalFailure(reason) {
+      if (!alive()) return;
+      dbg('   ✖ abandon après failover borné : ' + reason);
+      session.cleanAttempt();
       probe(ch.url, 'accès direct');
       setStatus('error',
-        '❌ Impossible de lire « ' + escapeHtml(ch.name) + ' »' + (useProxy ? ', même via le proxy' : '') +
-        ' (lien mort, serveur bloquant, ou géo-restriction).' + geoHint(ch) +
-        ' VLC depuis ton téléphone a les meilleures chances :',
-        failActions(ch));
+        '❌ Aucune source de « ' + escapeHtml(ch.name) + ' » n’a produit d’image' +
+        ' (miroirs et proxy essayés).' + geoHint(ch) + ' Utilise VLC :', failActions(ch));
+    }
+    function nextAttempt(reason) {
+      if (!alive() || session.transitioning) return;
+      session.transitioning = true;
+      if (session.index >= 0) dbg('   ✖ tentative ' + (session.index + 1) + ' : ' + reason);
+      session.cleanAttempt();
+      if (!alive()) return;
+      session.index++;
+      if (session.index >= attempts.length || Date.now() >= session.deadline) {
+        finalFailure(reason || 'délai global dépassé');
+        return;
+      }
+      var attemptIndex = session.index;
+      var attempt = attempts[attemptIndex];
+      (attempt.proxy ? issueProxyProfile(attempt.ch, function (cleanup) {
+        session.cleanups.push(cleanup);
+      }) : Promise.resolve('')).then(function (profile) {
+        if (!alive() || session.index !== attemptIndex) return;
+        startAttempt(attempt, profile);
+      }).catch(function (error) {
+        if (!alive() || session.index !== attemptIndex) return;
+        // Legacy/custom pass-through proxies have no profile endpoint. Keep
+        // their pre-profile behaviour; a signed worker will reject the GET
+        // cleanly and the normal failover will continue.
+        dbg('   profil signé indisponible → essai proxy compatible (' +
+          (error && error.message ? error.message : 'erreur réseau') + ')');
+        startAttempt(attempt, '');
+      });
     }
 
-    function started() {
-      if (token !== playToken) return;
-      clearTimeout(startupTimer);
-      dbg('   ✔ flux ouvert — démarrage lecture');
-      setStatus('', '');
-      video.play().then(function () { dbg('   ✔ lecture en cours'); })
-        .catch(function (e) { dbg('   ⏸ autoplay bloqué (' + (e && e.name ? e.name : '') + ') — touche ▶'); });
-    }
-    // The proxied URL is used when useProxy is on; hls.js uses its own loader instead.
-    var srcUrl = useProxy ? proxify(ch.url) : ch.url;
+    function startAttempt(attempt, profile) {
+      session.transitioning = false;
+      var current = attempt.ch;
+      var useProxy = attempt.proxy;
+      var kind = detectKind(current.url);
+      var srcUrl = useProxy ? proxify(current.url, profile) : current.url;
+      var remaining = session.deadline - Date.now();
+      var attemptTimeout = Math.min(FIRST_FRAME_TIMEOUT, remaining);
+      var attemptId = ++session.attemptSerial;
+      var confirmed = false, playRequested = false, baseline = 0, stallTimer = null;
+      var firstFrameTimer = null, lastProgressAt = Date.now(), lastProgressTime = 0;
+      nowPlayingName.textContent = current.name;
+      setStatus('info', 'Chargement de « ' + escapeHtml(current.name) + ' »' +
+        (candidates.length > 1 ? ' — source ' + (candidates.indexOf(current) + 1) + '/' + candidates.length : '') +
+        (useProxy ? ' <b>via proxy</b>' : '') + '…');
+      dbg('   tentative ' + (session.index + 1) + '/' + attempts.length + ' · ' + kind +
+        ' · proxy=' + (useProxy ? 'oui' : 'non') + ' · ' + current.url);
 
-    // --- DASH (.mpd) ---
-    if (kind === 'dash') {
-      if (!window.dashjs) { dbg('   moteur DASH indisponible'); onFail('moteur DASH indisponible'); return; }
-      dbg('   moteur = dash.js');
-      dash = dashjs.MediaPlayer().create();
-      if (useProxy) {
-        dash.extend('RequestModifier', function () {
-          return {
-            modifyRequestURL: function (url) { return isProxied(url) ? url : proxify(url); }
-          };
+      function attemptAlive() {
+        return alive() && session.attemptSerial === attemptId && session.index >= 0;
+      }
+      function requestPlay() {
+        if (!attemptAlive() || playRequested) return;
+        playRequested = true;
+        baseline = video.currentTime || 0;
+        video.play().catch(function (e) {
+          if (!attemptAlive()) return;
+          dbg('   ⏸ autoplay bloqué (' + (e && e.name ? e.name : '') + ') — touche ▶');
+          if (e && e.name === 'NotAllowedError') {
+            if (firstFrameTimer) { clearTimeout(firstFrameTimer); firstFrameTimer = null; }
+            setStatus('info', 'Flux prêt — touche ▶ pour lancer « ' + escapeHtml(current.name) + ' ».');
+          }
         });
       }
-      dash.on(dashjs.MediaPlayer.events.ERROR, function (e) {
-        onFail('DASH ' + (e && e.error ? (e.error.code || e.error.message || JSON.stringify(e.error)) : 'error'));
+      function confirmFrame(source) {
+        if (!attemptAlive() || confirmed) return;
+        confirmed = true;
+        if (firstFrameTimer) { clearTimeout(firstFrameTimer); firstFrameTimer = null; }
+        session.deadline = Date.now() + FAILOVER_BUDGET;
+        lastProgressAt = Date.now();
+        lastProgressTime = video.currentTime || 0;
+        dbg('   ✔ première image confirmée (' + source + ', t=' + (video.currentTime || 0).toFixed(2) + 's)');
+        setStatus('', '');
+      }
+      function progress() {
+        if (!attemptAlive()) return;
+        if (!confirmed && video.currentTime > baseline + 0.04) confirmFrame('currentTime');
+        if (confirmed && video.currentTime > lastProgressTime + 0.04) {
+          lastProgressTime = video.currentTime;
+          lastProgressAt = Date.now();
+          if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
+        }
+      }
+      function startStallWatch(reason) {
+        if (!confirmed || stallTimer) return;
+        stallTimer = later(function () { nextAttempt('blocage après démarrage : ' + reason); }, STALL_TIMEOUT);
+      }
+      listen(video, 'timeupdate', progress);
+      listen(video, 'playing', progress);
+      listen(video, 'waiting', function () { startStallWatch('waiting'); });
+      listen(video, 'stalled', function () { startStallWatch('stalled'); });
+      listen(video, 'error', function () {
+        if (!attemptAlive()) return;
+        nextAttempt('erreur vidéo ' + ((video.error && video.error.code) || '?'));
       });
-      dash.on(dashjs.MediaPlayer.events.CAN_PLAY, started);
-      dash.initialize(video, srcUrl, true);
-      return;
-    }
+      if (video.requestVideoFrameCallback) {
+        var frameId = video.requestVideoFrameCallback(function () { confirmFrame('image rendue'); });
+        session.cleanups.push(function () {
+          if (video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(frameId);
+        });
+      }
+      firstFrameTimer = later(function () {
+        if (!confirmed) nextAttempt('aucune première image en ' + (attemptTimeout / 1000).toFixed(0) + 's');
+      }, attemptTimeout);
+
+      var progressWatch = setInterval(function () {
+        if (!attemptAlive() || !confirmed || video.paused || video.ended) return;
+        progress();
+        if (Date.now() - lastProgressAt >= STALL_TIMEOUT) {
+          nextAttempt('blocage après démarrage : progression vidéo arrêtée');
+        }
+      }, 3000);
+      session.cleanups.push(function () { clearInterval(progressWatch); });
+
+      // --- DASH ---
+      if (kind === 'dash') {
+        if (!window.dashjs) { nextAttempt('moteur DASH indisponible'); return; }
+        dbg('   moteur = dash.js');
+        var localDash = dashjs.MediaPlayer().create();
+        session.dash = dash = localDash;
+        localDash.on(dashjs.MediaPlayer.events.ERROR, function (event) {
+          if (!attemptAlive()) return;
+          nextAttempt('DASH ' + ((event && event.error && event.error.message) || 'erreur'));
+        });
+        localDash.on(dashjs.MediaPlayer.events.CAN_PLAY, requestPlay);
+        localDash.initialize(video, srcUrl, false);
+        return;
+      }
 
     // --- Raw MPEG-TS (.ts) or direct file (mp4/webm…): mpegts.js handles both ---
     if (kind === 'mpegts' || kind === 'file') {
@@ -1206,7 +1226,7 @@
         var isLive = kind === 'mpegts';
         dbg('   moteur = mpegts.js (type=' + type + ', live=' + isLive + ')');
         try {
-          mpegts = window.mpegts.createPlayer(
+          var localMpegts = window.mpegts.createPlayer(
             { type: type, isLive: isLive, url: srcUrl },
             {
               enableWorker: true,
@@ -1219,14 +1239,14 @@
               lazyLoad: false
             }
           );
-          mpegts.on(window.mpegts.Events.ERROR, function (a, b, c) {
-            onFail('MPEG-TS ' + [a, b, (c && c.msg) ? c.msg : ''].filter(Boolean).join(' / '));
+          session.mpegts = mpegts = localMpegts;
+          localMpegts.on(window.mpegts.Events.ERROR, function (a, b, c) {
+            if (!attemptAlive()) return;
+            nextAttempt('MPEG-TS ' + [a, b, (c && c.msg) ? c.msg : ''].filter(Boolean).join(' / '));
           });
-          mpegts.attachMediaElement(video);
-          mpegts.load();
-          video.addEventListener('canplay', function onC() {
-            video.removeEventListener('canplay', onC); started();
-          });
+          localMpegts.attachMediaElement(video);
+          localMpegts.load();
+          listen(video, 'canplay', requestPlay, { once: true });
           return;
         } catch (e) { dbg('   mpegts.js exception: ' + (e && e.message)); }
       } else {
@@ -1234,13 +1254,7 @@
       }
       // Native fallback (Safari can play mp4/mov directly; some can play TS)
       video.src = srcUrl;
-      video.addEventListener('loadedmetadata', function onMeta() {
-        video.removeEventListener('loadedmetadata', onMeta); started();
-      });
-      video.addEventListener('error', function onErr() {
-        video.removeEventListener('error', onErr);
-        onFail('lecture native impossible (' + ((video.error && video.error.code) || '?') + ')');
-      });
+      listen(video, 'loadedmetadata', requestPlay, { once: true });
       return;
     }
 
@@ -1267,7 +1281,7 @@
         startFragPrefetch: true
       };
       if (useProxy) {
-        var L = getProxyLoader();
+        var L = getProxyLoader(profile);
         if (L) { cfg.loader = L; cfg.pLoader = L; cfg.fLoader = L; }
       }
       // Jump a stall hole toward already-buffered data instead of freezing.
@@ -1284,19 +1298,19 @@
         } catch (e) {}
       }
       var recoverCount = 0;
-      hls = new Hls(cfg);
-      hls.loadSource(ch.url);
-      hls.attachMedia(video);
-      video.addEventListener('canplay', function onCanPlay() {
-        video.removeEventListener('canplay', onCanPlay);
-        started();
+      var localHls = new Hls(cfg);
+      session.hls = hls = localHls;
+      localHls.loadSource(current.url);
+      localHls.attachMedia(video);
+      localHls.on(Hls.Events.MANIFEST_PARSED, function () {
+        if (!attemptAlive()) return;
+        recoverCount = 0; requestPlay();
       });
-      hls.on(Hls.Events.MANIFEST_PARSED, function () {
-        recoverCount = 0;
-        dbg('   manifeste HLS chargé');
+      localHls.on(Hls.Events.FRAG_BUFFERED, function () {
+        if (attemptAlive()) recoverCount = 0;
       });
-      hls.on(Hls.Events.FRAG_BUFFERED, function () { recoverCount = 0; });
-      hls.on(Hls.Events.ERROR, function (_evt, data) {
+      localHls.on(Hls.Events.ERROR, function (_evt, data) {
+        if (!attemptAlive()) return;
         var code = data && data.response && data.response.code ? ' HTTP ' + data.response.code : '';
         dbg('   hls: ' + (data ? (data.type + '/' + data.details) : 'error') + code + (data && data.fatal ? ' [fatal]' : ''));
         if (!data) return;
@@ -1306,49 +1320,52 @@
         }
         // Fatal: try to recover in place before giving up.
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && recoverCount < 4) {
-          recoverCount++; dbg('   ⚕ récupération média (' + recoverCount + ')'); hls.recoverMediaError(); return;
+          recoverCount++; dbg('   ⚕ récupération média (' + recoverCount + ')'); localHls.recoverMediaError(); return;
         }
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           // If a proxy fallback is available and not yet used, switch to it now
           // rather than retrying the (blocked) direct load.
-          if (!useProxy && proxyReady() && proxyMode === 'fallback') { onFail('HLS ' + data.details + code); return; }
+          if (!useProxy && proxyReady() && proxyMode === 'fallback') { nextAttempt('HLS ' + data.details + code); return; }
           if (recoverCount < 4) {
             recoverCount++; dbg('   ⚕ relance réseau (' + recoverCount + ')');
-            try { hls.startLoad(); return; } catch (e) {}
+            try { localHls.startLoad(); return; } catch (e) {}
           }
         }
-        onFail('HLS ' + data.details + code);
+        nextAttempt('HLS ' + data.details + code);
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // HLS natif (anciens iPhone sans MSE). Le proxy n'aide ici que s'il
       // réécrit les manifests côté serveur (proxy-worker.js le fait).
       dbg('   moteur = HLS natif (Safari)');
       video.src = srcUrl;
-      video.addEventListener('loadedmetadata', function onMeta() {
-        video.removeEventListener('loadedmetadata', onMeta); started();
-      });
-      video.addEventListener('error', function onErr() {
-        video.removeEventListener('error', onErr);
-        onFail('HLS natif impossible (' + ((video.error && video.error.code) || '?') + ')');
-      });
+      listen(video, 'loadedmetadata', requestPlay, { once: true });
     } else {
       dbg('   aucun moteur HLS disponible');
-      onFail('moteur HLS indisponible');
+      nextAttempt('aucun moteur HLS disponible');
     }
+    }
+
+    nextAttempt('démarrage');
   }
 
   /* ---------------- Playlist loading ---------------- */
 
   // Fetch text with proxy fallback (for custom http:// / no-CORS playlists).
-  function fetchText(url, allowProxy) {
-    return fetchWithTimeout(url, {}, 15000).then(function (r) {
+  function fetchText(url, allowProxy, personal) {
+    return fetch(url).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.text();
     }).catch(function (err) {
       if (allowProxy && proxyReady() && !isProxied(url)) {
-        return fetchWithTimeout(proxify(url), {}, 15000).then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.text();
+        var profile = personal ? issueProxyProfile({ url: url, personal: true }).catch(function (error) {
+          dbg('Profil signé indisponible pour la playlist → proxy compatible (' + error.message + ')');
+          return '';
+        }) : Promise.resolve('');
+        return profile.then(function (token) {
+          return fetch(proxify(url, token)).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+          });
         });
       }
       throw err;
@@ -1364,8 +1381,7 @@
 
   // Core loader. chipKey marks the active chip; allowProxy enables proxy
   // fallback when fetching the playlist itself.
-  function doLoad(url, label, chipKey, allowProxy) {
-    var token = ++playlistLoadToken;
+  function doLoad(url, label, chipKey, allowProxy, personal) {
     exitGlobalMode();
     setActiveChip(chipKey);
     stopPlayback();
@@ -1376,19 +1392,19 @@
     setStatus('', '');
     spinnerEl.style.display = 'block';
 
-    fetchText(url, allowProxy)
+    fetchText(url, allowProxy, personal)
       .then(function (text) {
-        if (token !== playlistLoadToken) return;
-        channels = parseM3U(text);
+        channels = parseM3U(text, personal ? { personal: true } : { catalog: url });
+        channels.forEach(applyHealth);
         spinnerEl.style.display = 'none';
         if (!channels.length) {
           setStatus('warn', 'Playlist vide ou format inattendu (' + escapeHtml(label) + ').');
         }
         searchEl.value = '';
         render('');
+        scheduleCatalogLoad();
       })
       .catch(function (err) {
-        if (token !== playlistLoadToken) return;
         spinnerEl.style.display = 'none';
         setStatus('error',
           '❌ Impossible de charger <b>' + escapeHtml(label) + '</b> (' + escapeHtml(err.message) + '). ' +
@@ -1400,7 +1416,7 @@
     code = (code || '').trim().replace(/\.m3u$/i, '');
     if (!code) return;
     // A full URL typed into the code box is treated as a custom playlist.
-    if (/^https?:\/\//i.test(code)) { doLoad(code, code, null, true); return; }
+    if (/^https?:\/\//i.test(code)) { doLoad(code, code, null, true, true); return; }
     inputEl.value = code;
     doLoad(rawUrl(code), 'streams/' + code + '.m3u', code, false);
   }
@@ -1420,53 +1436,31 @@
   var customChannels = [];  // individual channels (name/group/logo/url)
   try { customSources = JSON.parse(localStorage.getItem('dpiptv.custom') || '[]'); } catch (e) { customSources = []; }
   try { customChannels = JSON.parse(localStorage.getItem('dpiptv.mychannels') || '[]'); } catch (e) { customChannels = []; }
-  if (!Array.isArray(customSources)) customSources = [];
-  if (!Array.isArray(customChannels)) customChannels = [];
-  customSources = customSources.filter(function (source) {
-    return source && isSafeHttpUrl(source.url);
-  }).map(function (source) {
-    return { id: String(source.id || ''), url: source.url,
-      name: typeof source.name === 'string' ? source.name : 'Playlist' };
-  });
-  customChannels = customChannels.filter(function (channel) {
-    return channel && isSafeHttpUrl(channel.url);
-  }).map(function (channel) {
-    return { id: String(channel.id || ''), url: channel.url,
-      name: typeof channel.name === 'string' ? channel.name : 'Chaîne',
-      group: typeof channel.group === 'string' ? channel.group : '',
-      logo: isSafeHttpUrl(channel.logo) ? channel.logo : '' };
-  });
 
   function saveCustom() { localStorage.setItem('dpiptv.custom', JSON.stringify(customSources)); }
   function saveMyChannels() { localStorage.setItem('dpiptv.mychannels', JSON.stringify(customChannels)); }
 
-  function loadCustom(cp) { doLoad(cp.url, cp.name, 'custom:' + cp.id, true); }
+  function loadCustom(cp) { doLoad(cp.url, cp.name, 'custom:' + cp.id, true, true); }
 
   // "Mes chaînes" is an in-memory playlist, rendered like any other.
   function loadMyChannels() {
-    playlistLoadToken++;
     exitGlobalMode();
     setActiveChip('mychannels');
     stopPlayback();
     markPlaying(null);
     nowPlayingEl.classList.remove('visible');
     channels = customChannels.map(function (c) {
-      return { name: c.name, url: c.url, logo: c.logo || '', group: c.group || '', id: '' };
+      return { name: c.name, url: c.url, logo: c.logo || '', group: c.group || '', id: '', personal: true };
     });
     spinnerEl.style.display = 'none';
     setStatus('', '');
     searchEl.value = '';
     render('');
+    scheduleCatalogLoad();
   }
 
   function renderChips() {
     chipsEl.innerHTML = '';
-    var fav = document.createElement('button');
-    fav.className = 'chip custom';
-    fav.dataset.code = 'favorites';
-    fav.textContent = '★ Favoris' + (favorites.length ? ' (' + favorites.length + ')' : '');
-    fav.addEventListener('click', loadFavorites);
-    chipsEl.appendChild(fav);
     if (customChannels.length) {
       var mc = document.createElement('button');
       mc.className = 'chip custom';
@@ -1634,15 +1628,12 @@
   document.getElementById('src-play').addEventListener('click', function () {
     var url = srcUrlInput.value.trim();
     if (!url) { srcUrlInput.focus(); return; }
-    if (!isSafeHttpUrl(url)) {
-      setStatus('warn', 'Le lien doit être une URL http:// ou https:// valide.');
-      return;
-    }
     var ch = {
       name: srcNameInput.value.trim() || nameFromUrl(url),
       url: url,
       group: srcGroupInput.value.trim() || 'Mon flux',
-      logo: srcLogoInput.value.trim()
+      logo: srcLogoInput.value.trim(),
+      personal: true
     };
     closeSources();
     exitGlobalMode();
@@ -1654,8 +1645,8 @@
   document.getElementById('src-chan').addEventListener('click', function () {
     var url = srcUrlInput.value.trim();
     if (!url) { srcUrlInput.focus(); return; }
-    if (!isSafeHttpUrl(url)) {
-      setStatus('warn', 'Le lien doit être une URL http:// ou https:// valide.');
+    if (!/^https?:\/\//i.test(url)) {
+      setStatus('warn', 'Le lien doit commencer par http:// ou https://');
       return;
     }
     var c = {
@@ -1677,8 +1668,8 @@
   document.getElementById('src-add').addEventListener('click', function () {
     var url = srcUrlInput.value.trim();
     if (!url) { srcUrlInput.focus(); return; }
-    if (!isSafeHttpUrl(url)) {
-      setStatus('warn', 'Le lien doit être une URL http:// ou https:// valide.');
+    if (!/^https?:\/\//i.test(url)) {
+      setStatus('warn', 'Le lien doit commencer par http:// ou https://');
       return;
     }
     var cp = { id: Date.now().toString(36), name: srcNameInput.value.trim() || nameFromUrl(url), url: url };
@@ -1720,27 +1711,24 @@
     var seenCh = {}; customChannels.forEach(function (c) { seenCh[c.url] = 1; });
     var seenPl = {}; customSources.forEach(function (p) { seenPl[p.url] = 1; });
     var addedC = 0, addedP = 0;
-    (Array.isArray(data.channels) ? data.channels : []).forEach(function (c) {
-      if (!c || !isSafeHttpUrl(c.url) || seenCh[c.url]) return;
+    (data.channels || []).forEach(function (c) {
+      if (!c || !c.url || seenCh[c.url]) return;
       seenCh[c.url] = 1;
       customChannels.push({ id: Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
-        name: typeof c.name === 'string' ? c.name : 'Chaîne', url: c.url,
-        group: typeof c.group === 'string' ? c.group : '',
-        logo: isSafeHttpUrl(c.logo) ? c.logo : '' });
+        name: c.name || 'Chaîne', url: c.url, group: c.group || '', logo: c.logo || '' });
       addedC++;
     });
-    (Array.isArray(data.playlists) ? data.playlists : []).forEach(function (p) {
-      if (!p || !isSafeHttpUrl(p.url) || seenPl[p.url]) return;
+    (data.playlists || []).forEach(function (p) {
+      if (!p || !p.url || seenPl[p.url]) return;
       seenPl[p.url] = 1;
       customSources.push({ id: Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
-        name: typeof p.name === 'string' ? p.name : 'Playlist', url: p.url });
+        name: p.name || 'Playlist', url: p.url });
       addedP++;
     });
     var proxyMsg = '';
-    if (data.proxy && typeof data.proxy.tpl === 'string' && isSafeProxyTemplate(data.proxy.tpl)) {
+    if (data.proxy && data.proxy.tpl) {
       proxyTpl = data.proxy.tpl;
-      proxyMode = ['off', 'fallback', 'always'].indexOf(data.proxy.mode) >= 0
-        ? data.proxy.mode : 'fallback';
+      proxyMode = data.proxy.mode || 'fallback';
       localStorage.setItem('dpiptv.proxyTpl', proxyTpl);
       localStorage.setItem('dpiptv.proxyMode', proxyMode);
       proxyMsg = ' · proxy synchronisé';
@@ -1763,38 +1751,6 @@
   searchEl.addEventListener('input', function () {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(function () { render(searchEl.value); }, 150);
-  });
-
-  function playAdjacent(delta) {
-    if (!visibleChannels.length) return;
-    var index = currentChannel
-      ? visibleChannels.findIndex(function (channel) { return channel.url === currentChannel.url; })
-      : -1;
-    var next = Math.max(0, Math.min(visibleChannels.length - 1, index + delta));
-    var row = channelsEl.querySelector('[data-idx="' + next + '"]');
-    play(visibleChannels[next], row, false);
-    if (row) row.scrollIntoView({ block: 'nearest' });
-  }
-
-  document.addEventListener('keydown', function (event) {
-    var tag = event.target && event.target.tagName;
-    var editing = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
-    if (event.key === '/' && !editing) {
-      event.preventDefault();
-      searchEl.focus();
-      return;
-    }
-    if (editing || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      playAdjacent(event.key === 'ArrowDown' ? 1 : -1);
-    } else if (event.key === ' ' && currentChannel) {
-      event.preventDefault();
-      if (video.paused) video.play().catch(function () {}); else video.pause();
-    } else if (event.key.toLowerCase() === 'f' && currentChannel) {
-      event.preventDefault();
-      toggleFavorite(currentChannel);
-    }
   });
 
   /* ---------------- Settings UI ---------------- */
@@ -1829,12 +1785,7 @@
     proxyUrlInput.value = 'https://api.allorigins.win/raw?url={url}';
   });
   document.getElementById('settings-save').addEventListener('click', function () {
-    var nextProxy = proxyUrlInput.value.trim();
-    if (!isSafeProxyTemplate(nextProxy)) {
-      setStatus('warn', 'Le proxy doit être une URL HTTP(S) valide.');
-      return;
-    }
-    proxyTpl = nextProxy;
+    proxyTpl = proxyUrlInput.value.trim();
     proxyMode = proxyModeSelect.value;
     localStorage.setItem('dpiptv.proxyTpl', proxyTpl);
     localStorage.setItem('dpiptv.proxyMode', proxyMode);
@@ -1883,8 +1834,6 @@
   });
 
   dbg('Dpiptv prêt · proxy=' + proxyMode + ' · https=' + (location.protocol === 'https:'));
-  loadGuide();
-  setInterval(refreshEpg, 60000);
   loadPlaylist('fr');
 })();
 </script>
