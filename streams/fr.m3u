@@ -259,8 +259,6 @@ https://vdo2.pro-fhi.net:3207/stream/play.m3u8
 https://event.vedge.infomaniak.com/livecast/ik:puissancetelevision/manifest.m3u8
 #EXTINF:-1 tvg-id="RFMTV.fr@SD",RFM TV [Not 24/7]
 http://315e5a5d.ottrast.com/iptv/MM4E93NGF5LADZ/1038/index.m3u8
-#EXTINF:-1 tvg-id="RMCLife.fr@SD",RMC Life (1080p)
-http://145.239.5.177/333/index.m3u8
 #EXTINF:-1 tvg-id="RMCStory.fr@SD",RMC Story (1080p)
 https://d15aro46bnpfm8.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-fqkqiax1078up/RMC_Story_FR.m3u8
 #EXTINF:-1 tvg-id="SciFi.fr@HD",SciFi (720p)
@@ -416,10 +414,6 @@ https://mumbai-edge.smartplaytv.in/TraceSport/index.m3u8
 https://mumbai-edge.smartplaytv.in/france24/index.m3u8
 #EXTINF:-1 tvg-id="AfricanewsEnglish.fr@SD",Africanews English (720p)
 https://mumbai-edge.smartplaytv.in/AfricaNews/index.m3u8
-#EXTINF:-1 tvg-id="MCMPop.fr@SD",MCM Pop (576p)
-http://193.254.245.162/MCM/index.m3u8
-#EXTINF:-1 tvg-id="ParisPremiere.fr@SD",Paris Premiere (720p)
-http://193.254.245.162/PARIS-PREMIERE/index.m3u8
 #EXTINF:-1 tvg-id="CanalPlusSport.fr@SD",Canal+ Sport (1080p) [Geo-blocked]
 http://tv.streambox.fr/live/testlivestream/testlivestream/31.m3u8
 #EXTINF:-1 tvg-id="GolfPlus.fr@SD",Golf + (1080p) [Geo-blocked]
@@ -432,8 +426,6 @@ http://188.115.15.121:8000/play/a014
 http://tv.streambox.fr/live/testlivestream/testlivestream/41.m3u8
 #EXTINF:-1 tvg-id="CanalPlus.fr@SD",Canal+ (720p)
 http://151.80.18.177:86/Canal+_HD/index.m3u8
-#EXTINF:-1 tvg-id="Nicktoons.fr@SD",Nicktoons (1080p)
-http://193.254.245.162/NICKELODEON/index.m3u8
 #EXTINF:-1 tvg-id="Europe1TV.fr@HD",Europe 1 TV (1080p)
 https://raw.githubusercontent.com/Paradise-91/ParaTV/main/streams/misc/europe-1-tv-dm.m3u8
 #EXTINF:-1 tvg-id="W9.fr@SD",W9 (1086p)
@@ -461,3 +453,7 @@ http://stream.mcquack.net/192/index.m3u8
 #EXTINF:-1 tvg-id="Mezzo.fr@SD",Mezzo (576p)
 #EXTVLCOPT:http-user-agent=Enigma2
 http://91.228.35.249:8001/1:0:1:422B:2F44:13E:820000:0:0:0:
+#EXTINF:-1 tvg-id="RMCLife.fr@SD",RMC Life (1080p)
+https://d3dcdjv6dx07iz.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-eaaww2dyp3iih/RMC_Life_FR.m3u8
+#EXTINF:-1 tvg-id="RMCDecouverte.fr@SD",RMC Decouverte (1080p)
+https://d16zzycxcd0m0r.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-hixvx5kymecr9/RMC_Decouverte_FR.m3u8
