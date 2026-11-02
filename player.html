@@ -2897,7 +2897,34 @@
     stop: function () { stopPlayback(); markPlaying(null); nowPlayingEl.classList.remove('visible'); }
   };
   dbg('Dpiptv prêt · proxy=' + proxyMode + ' · https=' + (location.protocol === 'https:'));
-  loadPlaylist('fr');
+  // 🔗 Import automatique d'une playlist par lien : player.html#add=<lien .m3u encodé>&name=<nom>
+  // Le lien ajoute la playlist à « Mes liens » (enregistrée sur l'appareil) puis la charge.
+  function importFromHash() {
+    var h = (location.hash || '').replace(/^#/, '');
+    if (h.indexOf('add=') < 0) return false;
+    var params = {};
+    h.split('&').forEach(function (kv) {
+      var i = kv.indexOf('=');
+      if (i > 0) { try { params[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1)); } catch (e) {} }
+    });
+    var url = (params.add || '').trim();
+    if (!/^https?:\/\//i.test(url)) return false;
+    var name = (params.name || '').trim() || nameFromUrl(url);
+    var cp = null;
+    customSources.forEach(function (p) { if (p.url === url) cp = p; });
+    if (!cp) {
+      cp = { id: Date.now().toString(36), name: name, url: url };
+      customSources.push(cp);
+      saveCustom();
+      renderChips();
+    }
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    dbg('🔗 playlist importée par lien : ' + name);
+    setStatus('info', 'Playlist « ' + name + ' » ajoutée à Mes liens ✔');
+    loadCustom(cp);
+    return true;
+  }
+  if (!importFromHash()) loadPlaylist('fr');
 })();
 </script>
 <div id="multi-overlay" class="multi-overlay">
